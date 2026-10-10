@@ -47,8 +47,16 @@ def transcripts(runs: Path, arm: str) -> list[Path]:
     """
     found = []
     for agent in sorted(runs.glob(f"{arm}-r*")):
+        # Only the sessions this run recorded. A rerun in the same work directory shares
+        # the project folder with whatever ran there before, and those must not count.
+        ids = set()
+        for result in agent.glob("s*.json"):
+            try:
+                ids.add(json.loads(result.read_text()).get("session_id"))
+            except (OSError, json.JSONDecodeError):
+                pass
         name = str((agent / "work").resolve()).replace("/", "-")
-        found.extend((PROJECTS / name).glob("*.jsonl"))
+        found.extend(path for path in (PROJECTS / name).glob("*.jsonl") if path.stem in ids)
     return found
 
 
