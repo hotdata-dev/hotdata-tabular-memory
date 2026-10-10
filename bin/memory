@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# The memory command. On the Bash tool's PATH while this plugin is enabled.
+# Everything it needs comes from the plugin's configuration, so it takes no store flags.
+set -uo pipefail
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+exec bash "$ROOT/scripts/run.sh" memcli "$@"

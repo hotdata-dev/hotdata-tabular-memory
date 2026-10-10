@@ -9,11 +9,11 @@ Memory is a set of records in Hotdata, one fact each, with its sources and the s
 time in which it is valid. Claude Code's memory notes are mirrored into it automatically
 when they are written, so a note and a record say the same thing.
 
-Run every command through the plugin's runner, which uses the plugin's own environment
-and configuration. No store flags are needed:
+The `memory` command is on your PATH while this plugin is enabled. It uses the plugin's
+own environment and configuration, so it takes no store flags:
 
 ```sh
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/run.sh" memcli <command> [options]
+memory <command> [options]
 ```
 
 The scope defaults to the project of the working directory. Pass `--scope claude/other`
@@ -22,7 +22,7 @@ to read another project, and `--scope claude` to read every project.
 ## Search memory for an answer
 
 ```sh
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/run.sh" memcli recall "why do we use the hashed embedder?"
+memory recall "why do we use the hashed embedder?"
 ```
 
 Prints one line per record, closest first, inside a character budget. Each line holds the
@@ -31,7 +31,7 @@ content, the sources, and the validity span.
 ## Read everything about a subject
 
 ```sh
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/run.sh" memcli profile deployment
+memory profile deployment
 ```
 
 The subject is the slug of a memory note, such as `prefers-short-answers`.
@@ -39,7 +39,7 @@ The subject is the slug of a memory note, such as `prefers-short-answers`.
 ## List what is recorded
 
 ```sh
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/run.sh" memcli list --limit 50
+memory list --limit 50
 ```
 
 Each line starts with the record id, which `forget` takes.
@@ -50,7 +50,7 @@ Prefer writing a memory note the normal way: the hook mirrors it. Use this when 
 belongs in memory but not in a file.
 
 ```sh
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/run.sh" memcli remember \
+memory remember \
   "The staging database is rebuilt every Monday." --subject staging --kind fact
 ```
 
@@ -60,7 +60,7 @@ Writing the same content again writes nothing.
 ## Delete a memory that is wrong
 
 ```sh
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/run.sh" memcli forget claude/my-project/fact-568dc85d@1
+memory forget claude/my-project/fact-568dc85d@1
 ```
 
 Deletes every revision of that key. Ask the user before you forget something they wrote.
@@ -68,7 +68,7 @@ Deletes every revision of that key. Ask the user before you forget something the
 ## Check the configuration
 
 ```sh
-bash "${CLAUDE_PLUGIN_ROOT}/scripts/run.sh" memcli status
+memory status
 ```
 
 Prints the store, the embedder, the scope, the credentials, and the record count. Read it

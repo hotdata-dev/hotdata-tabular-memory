@@ -70,15 +70,33 @@ from the notes, so it is not mirrored. Writing the same note again writes nothin
 
 The skill runs these; you can run them too:
 
+`bin/memory` is on the Bash tool's PATH while the plugin is enabled, so Claude runs it as
+a bare command. From your own shell, call it by path:
+
 ```sh
-R=~/.claude/plugins/cache/hotdata/hotdata-memory/*/scripts/run.sh
-bash $R memcli status
-bash $R memcli list
-bash $R memcli recall "why do we use the hashed embedder?"
-bash $R memcli profile deployment
-bash $R memcli remember "Staging is rebuilt every Monday." --subject staging
-bash $R memcli forget claude/my-project/fact-568dc85d@1
+memory status
+memory list
+memory recall "why do we use the hashed embedder?"
+memory profile deployment
+memory remember "Staging is rebuilt every Monday." --subject staging
+memory forget claude/my-project/fact-568dc85d@1
 ```
+
+To stop Claude asking before every read, add the read-only commands to `permissions.allow`
+in `~/.claude/settings.json`. Leave `remember` and `forget` out, so a change or a deletion
+still asks:
+
+```json
+"allow": [
+  "Bash(memory recall:*)",
+  "Bash(memory profile:*)",
+  "Bash(memory list:*)",
+  "Bash(memory status)"
+]
+```
+
+Because the plugin has a top-level `bin/`, claude.ai and Cowork will not install it. Drop
+the directory and call `scripts/run.sh memcli` instead if you need to distribute it there.
 
 ## What this does not do
 

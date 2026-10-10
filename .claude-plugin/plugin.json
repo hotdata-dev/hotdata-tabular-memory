@@ -1,7 +1,7 @@
 {
   "name": "hotdata-memory",
   "displayName": "Hotdata Memory",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Stores Claude Code's auto memory as rows in Hotdata via hotmemory, and loads it back at session start.",
   "author": {
     "name": "Eddie",
