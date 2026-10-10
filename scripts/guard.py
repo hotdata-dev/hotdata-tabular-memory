@@ -40,8 +40,12 @@ def is_large_data_file(path: Path) -> int:
 
 def reason(path: Path, size: int) -> str:
     mb = size / (1024 * 1024)
-    return (f"{path.name} is {mb:.0f}MB. Read into context it would cost on the order of "
-            f"{int(size / 3.6 / 1000):,}k tokens, and the first 2,000 lines tell you nothing a "
+    if path.suffix.lower() == ".parquet":
+        cost = "a binary file: read as text it is noise, and the first 2,000 lines of noise"
+    else:
+        cost = (f"on the order of {int(size / 3.6 / 1000):,}k tokens, and the first 2,000 "
+                f"lines")
+    return (f"{path.name} is {mb:.0f}MB. Read into context that is {cost} tell you nothing a "
             f"query would not. Load it into Hotdata and query it there:\n\n"
             f"  hd load {path}\n\n"
             f"That takes a few seconds, prints the schema and a sample, and after it every "

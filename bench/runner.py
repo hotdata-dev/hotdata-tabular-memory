@@ -44,6 +44,12 @@ ANSWERS {{"q01": <value>, "q02": <value>, ...}}
 A value is a bare number (no dollar sign, no thousands separator) or a string, matching
 what the question asks for. Use the question ids exactly as given.
 
+You will be asked more questions about this same data in later sessions, and you will
+not remember this one. Before you finish, record anything you had to work out that
+would save you the work next time: a filter you had to define, a quirk of the schema or
+the SQL dialect, a figure you may be asked for again. Use whatever memory this session
+gives you. If it gives you none, skip this.
+
 Questions:
 {questions}
 """
@@ -84,7 +90,6 @@ def arm_settings(arm: str, home: Path) -> dict:
         "autoMemoryDirectory": str(home / "memory"),
     }
     if arm in ("bare", "plugin"):
-        # the data plugin arms: no memory of any kind; the plugin arm gets the plugin
         base["autoMemoryEnabled"] = False
         base["enabledPlugins"] = {"hotdata-memory@hotdata": False, "hotdata@hotdata": False}
     elif arm == "markdown":
@@ -107,11 +112,9 @@ PLUGIN_DIR = str(HERE.parent)
 def plugin_env(arm: str, scope: str) -> dict:
     """Return the plugin option environment for `arm`."""
     if arm == "plugin":
-        return {
-            "CLAUDE_PLUGIN_OPTION_DATABASE": DB,
-            "CLAUDE_PLUGIN_OPTION_PROJECT": "taxi",
-            "CLAUDE_PLUGIN_OPTION_READ_GUARD": "on",
-        }
+        return {"CLAUDE_PLUGIN_OPTION_DATABASE": DB,
+                "CLAUDE_PLUGIN_OPTION_PROJECT": "taxi",
+                "CLAUDE_PLUGIN_OPTION_READ_GUARD": "on"}
     if arm != "hotdata":
         return {}
     return {
@@ -120,6 +123,12 @@ def plugin_env(arm: str, scope: str) -> dict:
         "CLAUDE_PLUGIN_OPTION_DATABASE_ID": MEMORY_DB,
         "CLAUDE_PLUGIN_OPTION_WORKSPACE_ID": WORKSPACE,
         "CLAUDE_PLUGIN_OPTION_SCOPE_PREFIX": scope,
+        # Pin the project. The work directory is not a repository, so without this the
+        # scope would follow the shell and split when the agent changes directory.
+        "CLAUDE_PLUGIN_OPTION_PROJECT": "taxi",
+        # Attach memory to the database being queried, so a session can read both in
+        # one statement instead of shelling out to the memory command.
+        "CLAUDE_PLUGIN_OPTION_WORK_DATABASE": DB,
         "CLAUDE_PLUGIN_OPTION_EMBEDDER": "hashed",
     }
 
@@ -156,11 +165,16 @@ def grade(question: dict, given) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--arm", required=True, choices=["bare", "plugin", "none", "markdown", "hotdata"])
+    parser.add_argument("--arm", required=True,
+                        choices=["bare", "plugin", "none", "markdown", "hotdata"])
     parser.add_argument("--replicate", type=int, required=True)
     parser.add_argument("--out", type=Path, default=HERE / "runs")
     parser.add_argument("--sessions", type=int, default=20)
     parser.add_argument("--model", default="claude-opus-5")
+    parser.add_argument("--plugin-dir", default="",
+                        help="load the plugin from this directory for the run")
+    parser.add_argument("--tag", default="bench",
+                        help="run label; keeps one run's memory out of the next one's")
     args = parser.parse_args()
 
     agent = f"{args.arm}-r{args.replicate}"
@@ -173,7 +187,7 @@ def main() -> int:
     work.mkdir()
 
     questions = json.loads((HERE / "questions.json").read_text())
-    scope = f"bench-{agent}"
+    scope = f"{args.tag}-{agent}"
 
     settings = home / "settings.json"
     settings.write_text(json.dumps(arm_settings(args.arm, home), indent=1))
@@ -181,8 +195,14 @@ def main() -> int:
     env = {**os.environ, **plugin_env(args.arm, scope)}
     env["HOTDATA_API_KEY"] = (Path.home() / ".hotdata/api-key").read_text().strip()
     env["CLAUDE_CODE_PROJECT_DIR_NAME"] = scope
-    if args.arm == "none":
-        env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "1"
+    # A session started by another Claude Code session has auto memory off by default,
+    # and `autoMemoryEnabled` cannot turn it back on there. Only "0" forces it on, so
+    # every arm states what it wants rather than inheriting it.
+    env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "0" if args.arm == "markdown" else "1"
+    env["PATH"] = f"{PLUGIN_DIR}/bin:" + env.get("PATH", "")
+    # One plugin data dir per run, shared by every agent in it: a definition one agent
+    # makes reaches the next one's orientation, which is the behaviour under test.
+    env["CLAUDE_PLUGIN_DATA"] = str(args.out.resolve() / "plugin-data")
 
     answers_path = root / "answers.jsonl"
     graded = []
@@ -202,7 +222,9 @@ def main() -> int:
         proc = subprocess.run(
             ["claude", "-p", prompt, "--output-format", "json",
              "--model", args.model, "--settings", str(settings),
-             "--permission-mode", "acceptEdits"],
+             "--permission-mode", "acceptEdits",
+             *(["--plugin-dir", args.plugin_dir or PLUGIN_DIR]
+               if (args.plugin_dir or args.arm == "plugin") else [])],
             capture_output=True, text=True, cwd=work, env=env, timeout=3600,
         )
         wall = time.time() - started

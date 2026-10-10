@@ -38,8 +38,13 @@ def define(project_label: str, name: str, sql: str, description: str = "") -> di
     """Create the definition, or add a version if one by that name exists."""
     check_name(name)
     sql = sql.strip().rstrip(";")
-    if not sql:
-        raise hotdata.HotdataError("a definition needs a SELECT")
+    if not re.match(r"^\s*(select|with)\b", sql, re.I):
+        # The first agent to define one wrote the WHERE clause alone. A definition has
+        # to stand in a FROM, so it is a whole SELECT, and the refusal shows the shape.
+        raise hotdata.HotdataError(
+            f"a definition is a whole SELECT, so that {{{{{name}}}}} can stand in a FROM. "
+            f"Yours starts with {sql[:40]!r}. Write it as:\n"
+            f'  hd define {name} "SELECT * FROM <catalog>.public.<table> WHERE {sql[:60]}..."')
     full = stored_name(project_label, name)
     existing = api.find(full)
     if existing:

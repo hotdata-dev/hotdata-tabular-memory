@@ -380,3 +380,26 @@ def test_another_projects_definitions_are_not_visible(env, monkeypatch):
         {"id": "c", "name": "cli_pr_test_123"}])
     monkeypatch.setattr(api, "get", lambda i: {"sql": "SELECT 1", "latest_version": 1, "sql_hash": "h"})
     assert list(defs.all_definitions("my_repo", refresh=True)) == ["clean"]
+
+
+def test_the_guard_does_not_estimate_tokens_for_a_binary_file(env):
+    path = big(env, "big.parquet")
+    out = hook("guard", {"tool_name": "Read", "tool_input": {"file_path": str(path)}})
+    why = out["hookSpecificOutput"]["permissionDecisionReason"]
+    assert "binary" in why and "k tokens" not in why
+
+
+def test_a_definition_that_is_only_a_where_clause_is_refused_with_the_shape(env, monkeypatch):
+    import api
+    monkeypatch.setattr(api, "find", lambda n: None)
+    with pytest.raises(hotdata.HotdataError) as err:
+        defs.define("my_repo", "clean_set", "fare_amount > 0 AND trip_distance > 0")
+    assert "whole SELECT" in str(err.value)
+    assert 'hd define clean_set "SELECT * FROM' in str(err.value)
+
+
+def test_a_cte_counts_as_a_select(env, monkeypatch):
+    import api
+    monkeypatch.setattr(api, "find", lambda n: None)
+    monkeypatch.setattr(api, "create", lambda n, s, d="": {"id": "x", "latest_version": 1, "sql_hash": "h"})
+    assert defs.define("my_repo", "recent", "WITH r AS (SELECT 1) SELECT * FROM r")["new"]
