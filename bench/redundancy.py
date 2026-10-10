@@ -15,7 +15,20 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 PROJECTS = Path.home() / ".claude" / "projects"
-ORIENT = re.compile(r"\blimit\s+[123]\b|information_schema|describe\b", re.I)
+SCHEMA = re.compile(r"information_schema|\bdescribe\b|\bshow\s+(tables|columns)", re.I)
+PEEK = re.compile(r"\bselect\s+\*|\blimit\s+[1-5]\b", re.I)
+RANKING = re.compile(r"\border\s+by\b|\bgroup\s+by\b|\b(count|sum|avg|min|max|median)\s*\(", re.I)
+
+
+def is_orientation(sql: str) -> bool:
+    """A look at the shape of the data, as opposed to a question about it.
+
+    Schema reads always count. A `SELECT *` or a tiny LIMIT counts only when the query
+    is not ranking or aggregating — `ORDER BY fare DESC LIMIT 1` is an answer, not a peek.
+    """
+    if SCHEMA.search(sql):
+        return True
+    return bool(PEEK.search(sql)) and not RANKING.search(sql)
 QUERY = re.compile(r'(?:hotdata query|hd query)\s+"(.+?)"\s*(?:-d|\||$|;)', re.S)
 
 
@@ -61,7 +74,7 @@ def swarm_metrics(runs: Path, arm: str) -> dict:
         per_agent[agent].extend(qs)
         all_q.extend(qs)
     distinct = len(set(all_q))
-    orient = sum(1 for q in all_q if ORIENT.search(q))
+    orient = sum(1 for q in all_q if is_orientation(q))
     return {
         "queries": len(all_q),
         "distinct": distinct,
