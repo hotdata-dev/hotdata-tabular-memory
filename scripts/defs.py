@@ -22,8 +22,13 @@ def stored_name(project_label: str, name: str) -> str:
     """A definition is saved as `<project>__<name>`, so projects do not see each other's."""
     return f"{project_label}{SEP}{name}"
 REF = re.compile(r"\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}")
-AFTER_FROM = re.compile(r"(\b(?:from|join)\s+)\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}",
-                        re.IGNORECASE)
+# `FROM {{name}}` gets `AS name` so columns resolve — unless the agent wrote an alias
+# of their own right after it, which is what `FROM {{clean}} t JOIN ...` means.
+AFTER_FROM = re.compile(
+    r"(\b(?:from|join)\s+)\{\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}\}"
+    r"(?P<alias>\s+(?:as\s+)?(?!(?:where|join|on|group|order|limit|having|left|right|inner|"
+    r"outer|cross|full|union|except|intersect|using|natural)\b)[A-Za-z_][A-Za-z0-9_]*\b)?",
+    re.IGNORECASE)
 
 
 def check_name(name: str) -> str:
@@ -108,5 +113,9 @@ def expand(sql: str, definitions: dict[str, dict] | None = None,
         inner = known[name]["sql"].strip().rstrip(";")
         return f"({inner})"
 
-    sql = AFTER_FROM.sub(lambda m: f"{m.group(1)}{body(m.group(2))} AS {m.group(2)}", sql)
+    def from_ref(m: re.Match) -> str:
+        own = m.group("alias")
+        return f"{m.group(1)}{body(m.group(2))}{own if own else ' AS ' + m.group(2)}"
+
+    sql = AFTER_FROM.sub(from_ref, sql)
     return REF.sub(lambda m: body(m.group(1)), sql)

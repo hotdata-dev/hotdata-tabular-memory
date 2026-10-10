@@ -155,7 +155,9 @@ def cmd_batch(args) -> int:
     under its label, and the exit code is the worst of them.
     """
     e = entry()
-    stdin_text = "" if sys.stdin.isatty() else sys.stdin.read()
+    # Read a script from stdin only when no queries were given as arguments. An agent's
+    # shell keeps stdin open, so reading it unasked blocks forever waiting for EOF.
+    stdin_text = "" if args.sql or sys.stdin.isatty() else sys.stdin.read()
     items = split_batch(args.sql, stdin_text)
     if not items:
         raise HotdataError("nothing to run: pass 'label: SELECT ...' arguments or a script on stdin")
@@ -195,16 +197,24 @@ def cmd_defs(args) -> int:
 
 def cmd_share(args) -> int:
     e = entry()
-    sql = defs.expand(args.sql, project_label=e["project"])
-    try:
-        result = hotdata.query(sql, e["database"])
-    except HotdataError as error:
-        raise with_names(error, e) from None
-    rid = result.get("result_id")
-    if not rid:
-        raise HotdataError("the query returned no result id to materialise")
+    if args.result_id:
+        rid, total = args.result_id, None
+    else:
+        if not args.sql:
+            raise HotdataError("give a query, or --result-id from the orientation's recent results")
+        sql = defs.expand(args.sql, project_label=e["project"])
+        try:
+            result = hotdata.query(sql, e["database"])
+        except HotdataError as error:
+            raise with_names(error, e) from None
+        rid = result.get("result_id")
+        if not rid:
+            raise HotdataError("the query returned no result id to materialise")
+        total = result.get("total_row_count")
     hotdata.load_result(e["database"], args.table, rid)
-    total = result.get("total_row_count")
+    if total is None:
+        total = hotdata.rows(f"SELECT count(*) AS n FROM {e['catalog']}.public.{args.table}",
+                             e["database"])[0]["n"]
     print(f"{e['catalog']}.public.{args.table}: {total:,} rows, on the server. "
           f"Query it like any table.")
     orient.refresh(e, orient.budget())
@@ -286,7 +296,9 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("defs", help="list definitions"); s.set_defaults(run=cmd_defs)
 
     s = sub.add_parser("share", help="materialise a query result as a table")
-    s.add_argument("table"); s.add_argument("sql"); s.set_defaults(run=cmd_share)
+    s.add_argument("table"); s.add_argument("sql", nargs="?")
+    s.add_argument("--result-id", help="reuse a stored result instead of running a query")
+    s.set_defaults(run=cmd_share)
 
     s = sub.add_parser("fork", help="an isolated copy of the project database")
     s.add_argument("--name"); s.add_argument("--expires", default="24h")

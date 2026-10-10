@@ -16,31 +16,31 @@ ORIENTISH = re.compile(r"information_schema|\bdescribe\b|\bselect\s+\*.*\blimit\
 RECENT_LIMIT = 6
 
 
-def recent_results(database: str) -> tuple[list[str], int | None]:
-    """Return lines for the latest distinct successful queries, and the newest snapshot.
+def recent_results(database: str) -> list[str]:
+    """Return lines for the latest distinct successful queries, with their result ids.
 
-    A question already answered at the current snapshot can be reused by its result
-    id instead of being computed again. The run record carries everything needed.
+    A question already answered can be reused by its result id. The run record's
+    `snapshot_id` is a per-run digest, not a data version, so nothing here claims a
+    result is current: it is the latest run of that query, and the agent judges
+    whether its tables have changed since.
     """
     try:
         runs = hotdata.query_runs(database, limit=40)
     except hotdata.HotdataError:
-        return [], None
-    snapshot = max((r.get("snapshot_id") or 0 for r in runs), default=None) or None
+        return []
     seen, lines = set(), []
     for r in runs:  # newest first
         sql = " ".join((r.get("sql_text") or "").split())
-        if (r.get("status") not in (None, "succeeded", "success", "completed") or r.get("error_message")
+        status = str(r.get("status") or "").lower()
+        if (any(w in status for w in ("fail", "error", "cancel")) or r.get("error_message")
                 or not sql or not r.get("result_id") or ORIENTISH.search(sql)
                 or r.get("sql_hash") in seen):
             continue
-        if snapshot and r.get("snapshot_id") and r["snapshot_id"] != snapshot:
-            continue  # older than the data; a reuse would be stale
         seen.add(r.get("sql_hash"))
         lines.append(f"  {r['result_id']}  ({r.get('row_count', '?')} rows)  {sql[:88]}")
         if len(lines) >= RECENT_LIMIT:
             break
-    return lines, snapshot
+    return lines
 
 
 DIALECT = """Dialect (Apache DataFusion): no date_diff() or hour() — use EXTRACT(EPOCH FROM (b - a))
@@ -68,11 +68,11 @@ def block(entry: dict, budget: int) -> str:
             desc = d.get("description") or d.get("sql", "")[:80]
             lines.append(f"  {{{{{name}}}}} — {desc}")
         lines.append("")
-    recent, snapshot = recent_results(database)
+    recent = recent_results(database)
     if recent:
-        lines.append(f"Already computed at the current snapshot ({snapshot}). Reuse a result "
-                     f"instead of re-running it: hd query \"SELECT ... \" is the same work; "
-                     f"hd share <table> can materialise one by --result-id:")
+        lines.append("Already computed in this project, newest first. If the tables it read "
+                     "have not changed since, reuse the result instead of re-running it: "
+                     "hd share <table> --result-id <id>")
         lines.extend(recent)
         lines.append("")
     for table in hotdata.tables(database, catalog):

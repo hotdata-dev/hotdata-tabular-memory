@@ -457,15 +457,15 @@ def test_batch_labels_unlabelled_queries_by_position(env):
 # ------------------------------------------------------------- orientation extras
 
 
-def test_orientation_lists_recent_results_at_the_current_snapshot_only(env):
+def test_orientation_lists_recent_results_labelled_by_snapshot(env):
     project.project_database(create=True)
     seed_defs(env)
     text = hook("session_start", {"cwd": str(env / "my-repo")})["hookSpecificOutput"]["additionalContext"]
-    assert "current snapshot (7)" in text
-    assert "rsltA" in text          # succeeded, newest snapshot
-    assert "rsltOLD" not in text    # same query at an older snapshot
-    assert "rsltB" not in text      # a LIMIT 2 peek is not worth reusing
-    assert "rsltC" not in text      # failed
+    assert "Already computed" in text
+    assert "rsltA  (1 rows)" in text   # the newest run of that query
+    assert "rsltOLD" not in text       # the same query again, older: deduplicated by hash
+    assert "rsltB" not in text         # a LIMIT 2 peek is not worth reusing
+    assert "rsltC" not in text         # failed
 
 
 def test_orientation_shows_time_ranges(env):
@@ -494,3 +494,38 @@ def test_a_missing_table_error_names_what_exists(env):
     assert "not found" in out.stderr
     assert "tables here: my_repo.public.trips" in out.stderr
     assert "{{clean_set}}" in out.stderr
+
+
+def test_batch_with_arguments_never_touches_stdin(env, monkeypatch):
+    """An agent's shell keeps stdin open; reading it would hang forever."""
+    import hd, io
+    project.project_database(create=True)
+    seed_defs(env)
+
+    class Hanging(io.StringIO):
+        def read(self, *a):  # noqa: D401
+            raise AssertionError("stdin was read")
+        def isatty(self):
+            return False
+    monkeypatch.setattr(sys, "stdin", Hanging())
+    monkeypatch.chdir(env / "my-repo")
+    assert hd.main(["batch", "n: SELECT count(*) FROM t"]) == 0
+
+
+def test_a_definition_keeps_the_alias_the_agent_wrote(env):
+    known = {"clean": {"sql": "SELECT * FROM t WHERE x > 0"}}
+    out = defs.expand("SELECT z.n, count(*) FROM {{clean}} t JOIN z ON t.id = z.id", known)
+    assert "FROM (SELECT * FROM t WHERE x > 0) t JOIN z" in out
+    assert " AS clean" not in out
+    out = defs.expand("SELECT * FROM {{clean}} AS c WHERE c.x = 1", known)
+    assert "FROM (SELECT * FROM t WHERE x > 0) AS c WHERE" in out
+    out = defs.expand("SELECT count(*) FROM {{clean}} WHERE x = 1", known)
+    assert "FROM (SELECT * FROM t WHERE x > 0) AS clean WHERE" in out
+
+
+def test_share_can_materialise_a_stored_result_by_id(env):
+    project.project_database(create=True)
+    out = hd(["share", "again", "--result-id", "rsltA"], env)
+    assert out.returncode == 0, out.stderr
+    assert any("tables load again --database" in c and "--result-id rsltA" in c for c in calls(env))
+    assert not any(c.startswith("query") and "rsltA" in c for c in calls(env))
