@@ -15,13 +15,13 @@ mkdir -p "$OUT"
 for r in $(seq 1 "$REPLICATES"); do
   echo "=== replicate $r of $REPLICATES ==="
   pids=()
-  for arm in markdown hotdata none; do
+  for arm in ${ARMS:-bare plugin}; do
     python3 "$HERE/runner.py" --arm "$arm" --replicate "$r" --out "$OUT" \
       --sessions "$SESSIONS" > "$OUT/$arm-r$r.log" 2>&1 &
     pids+=($!)
   done
   for pid in "${pids[@]}"; do wait "$pid"; done
-  for arm in markdown hotdata none; do
+  for arm in ${ARMS:-bare plugin}; do
     tail -1 "$OUT/$arm-r$r.log"
   done
 done

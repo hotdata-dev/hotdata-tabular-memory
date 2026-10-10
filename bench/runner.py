@@ -49,18 +49,45 @@ Questions:
 """
 
 
+PLUGIN_BRIEF = """You are answering questions about New York yellow taxi trips for January 2024.
+
+The project's data is in Hotdata and the `hd` command is on your PATH. Your session
+started with the database, its tables, a sample, any definitions and the SQL dialect.
+Use `hd query "<sql>"`. In SQL, {{{{name}}}} expands to a definition; `hd defs` lists them.
+If a question names a set (such as "the clean set") and no definition exists, define it
+from the question's own words with `hd define` before answering, so later questions use
+the same one.
+
+Answer each question below. When you are done, print one final line and nothing after it:
+
+ANSWERS {{{{"q01": <value>, "q02": <value>, ...}}}}
+
+A value is a bare number (no dollar sign, no thousands separator) or a string, matching
+what the question asks for. Use the question ids exactly as given.
+
+Questions:
+{questions}
+"""
+
+
 def arm_settings(arm: str, home: Path) -> dict:
     """Return the settings.json contents for `arm`."""
     base = {
         "permissions": {
             "allow": ["Bash(hotdata query:*)", "Bash(hotdata databases:*)",
+                      "Bash(hd query:*)", "Bash(hd defs)", "Bash(hd status)",
+                      "Bash(hd orient:*)", "Bash(hd define:*)", "Bash(hd share:*)",
                       "Bash(memory recall:*)", "Bash(memory profile:*)",
                       "Bash(memory list:*)", "Bash(memory remember:*)",
                       "Bash(memory status)"],
         },
         "autoMemoryDirectory": str(home / "memory"),
     }
-    if arm == "markdown":
+    if arm in ("bare", "plugin"):
+        # the data plugin arms: no memory of any kind; the plugin arm gets the plugin
+        base["autoMemoryEnabled"] = False
+        base["enabledPlugins"] = {"hotdata-memory@hotdata": False, "hotdata@hotdata": False}
+    elif arm == "markdown":
         base["autoMemoryEnabled"] = True
         base["enabledPlugins"] = {"hotdata-memory@hotdata": False}
     elif arm == "hotdata":
@@ -74,8 +101,17 @@ def arm_settings(arm: str, home: Path) -> dict:
     return base
 
 
+PLUGIN_DIR = str(HERE.parent)
+
+
 def plugin_env(arm: str, scope: str) -> dict:
     """Return the plugin option environment for `arm`."""
+    if arm == "plugin":
+        return {
+            "CLAUDE_PLUGIN_OPTION_DATABASE": DB,
+            "CLAUDE_PLUGIN_OPTION_PROJECT": "taxi",
+            "CLAUDE_PLUGIN_OPTION_READ_GUARD": "on",
+        }
     if arm != "hotdata":
         return {}
     return {
@@ -120,7 +156,7 @@ def grade(question: dict, given) -> bool:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--arm", required=True, choices=["markdown", "hotdata", "none"])
+    parser.add_argument("--arm", required=True, choices=["bare", "plugin", "none", "markdown", "hotdata"])
     parser.add_argument("--replicate", type=int, required=True)
     parser.add_argument("--out", type=Path, default=HERE / "runs")
     parser.add_argument("--sessions", type=int, default=20)
@@ -160,7 +196,8 @@ def main() -> int:
         if not batch:
             break
         listing = "\n".join(f"{q['id']}. {q['ask']}" for q in batch)
-        prompt = BRIEF.format(db=DB, questions=listing)
+        brief = PLUGIN_BRIEF if args.arm == "plugin" else BRIEF
+        prompt = brief.format(db=DB, questions=listing)
         started = time.time()
         proc = subprocess.run(
             ["claude", "-p", prompt, "--output-format", "json",

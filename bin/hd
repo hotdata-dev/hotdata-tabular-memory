@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""The memory command. On the Bash tool's PATH while this plugin is enabled."""
+"""hd: the Hotdata command for agents. On the Bash tool's PATH while the plugin is enabled."""
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "scripts"))
-from memcli import main
+from hd import main
 sys.exit(main())

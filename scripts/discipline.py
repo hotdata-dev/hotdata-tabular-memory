@@ -1,0 +1,44 @@
+"""What a query is allowed to bring back into an agent's context.
+
+The CLI caps a preview at 10,000 rows, which is a human limit. An agent's is lower,
+and an unbounded scan is refused outright: the right move is to aggregate, or to
+materialise the result as a table with `hd share` and query that.
+"""
+
+from __future__ import annotations
+
+import re
+
+AGGREGATE = re.compile(r"\b(count|sum|avg|min|max|median|approx_median|stddev|"
+                       r"variance|array_agg|string_agg)\s*\(|\bgroup\s+by\b", re.I)
+LIMIT = re.compile(r"\blimit\s+\d+", re.I)
+STAR = re.compile(r"\bselect\s+(?:\w+\.)?\*", re.I)
+
+
+def classify(sql: str) -> str:
+    """Return `aggregate`, `projection` or `unbounded`."""
+    text = " ".join(sql.split())
+    if AGGREGATE.search(text):
+        return "aggregate"
+    if LIMIT.search(text):
+        return "projection"
+    return "unbounded"
+
+
+def refusal(sql: str, cap: int) -> str:
+    kind = classify(sql)
+    star = bool(STAR.search(sql))
+    what = "a `SELECT *` with no LIMIT" if star else "a scan with no aggregate and no LIMIT"
+    return (f"refused: this is {what}, which would pull every matching row into context.\n"
+            f"Aggregate it, add `LIMIT {cap}`, or keep the rows on the server:\n"
+            f"  hd share <table> \"<the query>\"     # materialise it, then query the table\n"
+            f"Pass --all to stream the whole result anyway.")
+
+
+def trim(rows: list[list], total: int, cap: int) -> tuple[list[list], str]:
+    """Return at most `cap` rows and a footer when some were left out."""
+    if total <= cap and len(rows) <= cap:
+        return rows, ""
+    shown = rows[:cap]
+    return shown, (f"\n{len(shown)} of {total} rows — the rest stayed on the server. "
+                   f"Aggregate, or `hd share <table> \"<sql>\"` to materialise.")

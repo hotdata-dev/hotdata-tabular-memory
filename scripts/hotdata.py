@@ -1,8 +1,9 @@
 """The Hotdata CLI, as a few functions. No SDK, no dependencies.
 
 The `hotdata` binary is the Rust SDK already compiled, already holding the user's
-credentials, and already capping and streaming large results. A plugin that shells
-out to it needs no interpreter environment of its own.
+credentials, and already capping and streaming large results. Every call here names
+its database explicitly; none depends on the CLI's active database, which is global
+state two agents would fight over.
 """
 
 from __future__ import annotations
@@ -10,18 +11,19 @@ from __future__ import annotations
 import json
 import os
 import subprocess
-import tempfile
 from collections.abc import Sequence
 from pathlib import Path
 
-TIMEOUT = 120
+TIMEOUT = 300
+FORMATS = {".csv": "csv", ".tsv": "csv", ".parquet": "parquet",
+           ".json": "json", ".jsonl": "json", ".ndjson": "json"}
 
 
 class HotdataError(RuntimeError):
     """A CLI call that failed, carrying what the CLI said."""
 
 
-def _credentials() -> dict[str, str]:
+def credentials() -> dict[str, str]:
     """Return the environment a call needs, filling the key in from disk if missing.
 
     A hook does not inherit a login shell, so the key comes from the environment
@@ -40,7 +42,7 @@ def run(args: Sequence[str], timeout: int = TIMEOUT) -> str:
     try:
         done = subprocess.run(
             ["hotdata", *args], capture_output=True, text=True,
-            timeout=timeout, env=_credentials(),
+            timeout=timeout, env=credentials(),
         )
     except FileNotFoundError:
         raise HotdataError("the `hotdata` CLI is not on PATH") from None
@@ -48,8 +50,14 @@ def run(args: Sequence[str], timeout: int = TIMEOUT) -> str:
         raise HotdataError(str(error)) from None
     if done.returncode not in (0, 3):  # 3 is an incomplete preview, not a failure
         message = (done.stderr or done.stdout).strip().splitlines()
-        raise HotdataError(message[0] if message else f"exit {done.returncode}")
+        raise HotdataError(_plain(message[0]) if message else f"exit {done.returncode}")
     return done.stdout
+
+
+def _plain(text: str) -> str:
+    """Strip the CLI's colour codes so an error reads as a sentence."""
+    import re
+    return re.sub(r"\x1b\[[0-9;]*m", "", text).strip()
 
 
 def _objects(text: str) -> list[dict]:
@@ -66,51 +74,9 @@ def _objects(text: str) -> list[dict]:
     return found
 
 
-def query(sql: str, database: str) -> list[dict]:
-    """Run `sql` against `database` and return its rows as dicts."""
-    text = run(["query", sql, "-d", database, "-o", "json"])
-    rows: list[dict] = []
-    for chunk in _objects(text):
-        columns = chunk.get("columns") or []
-        for row in chunk.get("rows") or []:
-            rows.append(dict(zip(columns, row, strict=False)))
-    return rows
-
-
-def append(rows: Sequence[dict], table: str, database: str,
-           mode: str = "append", key: str = "") -> None:
-    """Load `rows` into `table`, creating it if it is missing.
-
-    A `delete`, `update` or `upsert` load matches existing rows by a key, which the
-    table does not declare, so the caller names one.
-    """
-    if not rows:
-        return
-    handle = tempfile.NamedTemporaryFile("w", suffix=".json", delete=False,
-                                         encoding="utf-8")
-    try:
-        for row in rows:
-            handle.write(json.dumps(row) + "\n")
-        handle.close()
-        # `databases load` resolves the target from the CLI's active database, which
-        # is global state two agents would fight over. `tables load` takes the id.
-        args = ["databases", "tables", "load", table, "--database", database,
-                "--file", handle.name, "--format", "json", "--mode", mode]
-        if key:
-            args += ["--key", key]
-        run(args)
-    finally:
-        os.unlink(handle.name)
-
-
-def table_exists(catalog: str, table: str, database: str) -> bool:
-    """Return True if `table` is already in `catalog`."""
-    sql = (f"SELECT 1 FROM information_schema.tables "
-           f"WHERE table_catalog = '{catalog}' AND table_name = '{table}' LIMIT 1")
-    try:
-        return bool(query(sql, database))
-    except HotdataError:
-        return False
+def _first(text: str) -> dict:
+    found = _objects(text)
+    return found[0] if found else {}
 
 
 def quote(value: str) -> str:
@@ -118,11 +84,130 @@ def quote(value: str) -> str:
     return "'" + str(value).replace("'", "''") + "'"
 
 
+# ----------------------------------------------------------------------- queries
+
+
+def query(sql: str, database: str) -> dict:
+    """Run `sql` against `database` and return the result as the CLI reports it.
+
+    The dict carries `columns`, `rows`, `result_id`, `total_row_count` and `truncated`.
+    A streamed result's row chunks are joined.
+    """
+    text = run(["query", sql, "-d", database, "-o", "json"])
+    chunks = _objects(text)
+    if not chunks:
+        return {"columns": [], "rows": [], "result_id": "", "total_row_count": 0}
+    head = dict(chunks[0])
+    rows = []
+    for chunk in chunks:
+        rows.extend(chunk.get("rows") or [])
+    head["rows"] = rows
+    return head
+
+
+def rows(sql: str, database: str) -> list[dict]:
+    """Run `sql` and return its rows as dicts."""
+    result = query(sql, database)
+    columns = result.get("columns") or []
+    return [dict(zip(columns, row, strict=False)) for row in result.get("rows") or []]
+
+
+def stream_csv(sql: str, database: str) -> str:
+    """Run `sql` and return the whole result as CSV text, streamed by the CLI."""
+    return run(["query", sql, "-d", database, "-o", "csv"])
+
+
+# --------------------------------------------------------------------- databases
+
+
+def create(name: str, catalog: str) -> dict:
+    """Create a database and return `{id, catalog}`."""
+    made = _first(run(["databases", "create", "--name", name, "--catalog", catalog,
+                       "-o", "json"]))
+    if not made.get("id"):
+        raise HotdataError("create returned no database id")
+    return {"id": made["id"], "catalog": made.get("default_catalog") or catalog}
+
+
 def catalog_of(database: str) -> str:
-    """Return the SQL alias of `database`, so nobody has to configure it."""
-    text = run(["databases", "show", database, "-o", "json"])
-    for chunk in _objects(text):
-        alias = chunk.get("default_catalog")
-        if alias:
-            return str(alias)
-    return "default"
+    """Return the SQL alias of `database`."""
+    shown = _first(run(["databases", "show", database, "-o", "json"]))
+    return str(shown.get("default_catalog") or "default")
+
+
+def fork(database: str, name: str, expires: str = "") -> dict:
+    """Fork `database` and return `{id, snapshot_id}`.
+
+    The fork's provenance is the only place a snapshot id can be read today.
+    """
+    args = ["databases", "fork", database, "--name", name, "-o", "json"]
+    if expires:
+        args += ["--expires-at", expires]
+    made = _first(run(args))
+    origin = made.get("forked_from") or {}
+    return {"id": made.get("id", ""), "snapshot_id": origin.get("snapshot_id"),
+            "catalog": made.get("default_catalog", "")}
+
+
+def attach(database: str, other: str, alias: str) -> None:
+    """Make `other`'s tables visible inside `database` as `<alias>.public.<table>`."""
+    run(["databases", "attach", other, "--alias", alias, "--database", database])
+
+
+def workspaces() -> list[dict]:
+    text = run(["workspaces", "list", "-o", "json"])
+    found = _objects(text)
+    return found[0] if found and isinstance(found[0], list) else found
+
+
+# ------------------------------------------------------------------------ tables
+
+
+def load_file(database: str, table: str, path: str, mode: str = "replace") -> None:
+    """Load a local file into `table`, creating the table if it is missing."""
+    fmt = FORMATS.get(Path(path).suffix.lower())
+    args = ["databases", "tables", "load", table, "--database", database,
+            "--file", path, "--mode", mode]
+    if fmt:
+        args += ["--format", fmt]
+    run(args, timeout=900)
+
+
+def load_result(database: str, table: str, result_id: str) -> None:
+    """Materialise a stored query result as `table`. The rows never leave the server."""
+    run(["databases", "tables", "load", table, "--database", database,
+         "--result-id", result_id, "--mode", "replace"], timeout=900)
+
+
+def tables(database: str, catalog: str) -> list[dict]:
+    """Return `[{name, rows}]` for the database's own tables."""
+    names = rows(
+        f"SELECT table_name FROM information_schema.tables "
+        f"WHERE table_catalog = {quote(catalog)} AND table_schema = 'public' "
+        f"ORDER BY table_name", database)
+    out = []
+    for row in names:
+        name = row["table_name"]
+        try:
+            count = rows(f"SELECT count(*) AS n FROM {catalog}.public.{name}", database)
+            out.append({"name": name, "rows": int(count[0]["n"]) if count else 0})
+        except HotdataError:
+            out.append({"name": name, "rows": None})
+    return out
+
+
+def columns(database: str, catalog: str, table: str) -> list[dict]:
+    """Return `[{name, type}]` for `table`, in declared order."""
+    found = rows(
+        f"SELECT column_name, data_type FROM information_schema.columns "
+        f"WHERE table_catalog = {quote(catalog)} AND table_name = {quote(table)} "
+        f"ORDER BY ordinal_position", database)
+    return [{"name": r["column_name"], "type": r["data_type"]} for r in found]
+
+
+def sample(database: str, catalog: str, table: str, n: int = 3) -> list[dict]:
+    return rows(f"SELECT * FROM {catalog}.public.{table} LIMIT {int(n)}", database)
+
+
+def remove_table(database: str, table: str) -> None:
+    run(["databases", "tables", "remove", table, "--database", database])

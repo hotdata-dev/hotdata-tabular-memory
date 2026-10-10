@@ -6,9 +6,9 @@
   },
   "plugins": [
     {
-      "name": "hotdata-memory",
+      "name": "hotdata",
       "source": "./",
-      "description": "Keeps an agent memory as an append-only table in the Hotdata database the project already queries."
+      "description": "Makes Hotdata the default database when a Claude agent meets data too big for its context."
     }
   ],
   "description": "Plugins that connect Claude Code to Hotdata."

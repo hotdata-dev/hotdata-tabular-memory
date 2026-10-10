@@ -1,68 +1,28 @@
 {
-  "name": "hotdata-memory",
-  "displayName": "Hotdata Memory",
-  "version": "1.0.1",
-  "description": "Keeps an agent's memory as an append-only table in the Hotdata database the project already queries. No dependencies beyond the hotdata CLI.",
-  "author": {
-    "name": "Eddie",
-    "email": "eddie@hotdata.dev"
-  },
+  "name": "hotdata",
+  "displayName": "Hotdata",
+  "version": "2.0.0",
+  "description": "Makes Hotdata the default database when a Claude agent meets data too big for its context: one database per project, definitions every agent shares, results that stay on the server.",
+  "author": { "name": "Eddie", "email": "eddie@hotdata.dev" },
   "repository": "https://github.com/hotdata-dev/claude-hotdata-plugin",
   "license": "MIT",
-  "keywords": [
-    "memory",
-    "hotdata",
-    "hotmemory"
-  ],
+  "keywords": ["hotdata", "data", "sql", "swarm"],
   "userConfig": {
-    "database": {
-      "type": "string",
-      "title": "Database",
-      "description": "The Hotdata database this project queries. Memory becomes a table in it, so one statement reads memory beside the data. Leave empty to keep memory in a local JSON file instead."
-    },
-    "mode": {
-      "type": "string",
-      "title": "Mode",
-      "description": "'mirror' follows Claude's own memory files. 'standalone' makes the table the only memory, for a project with auto memory off.",
-      "options": [
-        "mirror",
-        "standalone"
-      ],
-      "default": "mirror"
-    },
-    "project": {
-      "type": "string",
-      "title": "Project",
-      "description": "Name the project instead of letting the repository or the directory name it. Records live under <scope prefix>/<project>."
-    },
-    "scope_prefix": {
-      "type": "string",
-      "title": "Scope prefix",
-      "description": "First label of the namespace.",
-      "default": "claude"
-    },
-    "budget": {
-      "type": "number",
-      "title": "Context budget",
-      "description": "Characters of memory loaded at session start.",
-      "default": 2000,
-      "min": 200,
-      "max": 20000
-    },
-    "catalog": {
-      "type": "string",
-      "title": "Catalog",
-      "description": "SQL alias of the database. Read from the database when empty."
-    },
-    "memory_root": {
-      "type": "directory",
-      "title": "Memory root",
-      "description": "Directory under which a written .md file counts as a memory note, in mirror mode. Defaults to ~/.claude/projects."
-    },
-    "memory_file": {
-      "type": "file",
-      "title": "Memory file",
-      "description": "Where memory goes when no database is configured."
-    }
+    "database": { "type": "string", "title": "Database",
+      "description": "Pin the project's Hotdata database id. Otherwise the first `hd load` creates one and every agent in the project finds it." },
+    "project": { "type": "string", "title": "Project",
+      "description": "Name the project instead of letting the repository name it." },
+    "read_guard": { "type": "string", "title": "Large-file guard", "options": ["on", "off"], "default": "on",
+      "description": "Refuse to read a large data file into context and point at `hd load` instead." },
+    "guard_threshold_mb": { "type": "number", "title": "Guard threshold (MB)", "default": 8, "min": 1, "max": 1024,
+      "description": "A .csv/.tsv/.parquet/.json/.jsonl over this size is refused by the guard." },
+    "row_cap": { "type": "number", "title": "Row cap", "default": 200, "min": 1, "max": 10000,
+      "description": "Rows `hd query` returns before it stops and suggests `hd share`." },
+    "budget": { "type": "number", "title": "Orientation budget", "default": 2500, "min": 400, "max": 20000,
+      "description": "Characters of orientation injected at session start." },
+    "workspace": { "type": "string", "title": "Workspace id",
+      "description": "Leave empty to use the first workspace of the login." },
+    "catalog": { "type": "string", "title": "Catalog",
+      "description": "SQL alias of a pinned database. Read from the database when empty." }
   }
 }
