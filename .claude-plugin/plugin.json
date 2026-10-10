@@ -1,0 +1,85 @@
+{
+  "name": "hotdata-memory",
+  "displayName": "Hotdata Memory",
+  "version": "0.2.0",
+  "description": "Stores Claude Code's auto memory as rows in Hotdata via hotmemory, and loads it back at session start.",
+  "author": {
+    "name": "Eddie",
+    "email": "eddie@hotdata.dev"
+  },
+  "repository": "https://github.com/hotdata-dev/claude-hotdata-plugin",
+  "license": "MIT",
+  "keywords": [
+    "memory",
+    "hotdata",
+    "hotmemory"
+  ],
+  "userConfig": {
+    "store": {
+      "type": "string",
+      "title": "Store",
+      "description": "Where memory records live. 'local' keeps a JSON file; 'hotdata' keeps rows in a managed database.",
+      "options": [
+        "local",
+        "hotdata"
+      ],
+      "default": "local"
+    },
+    "database_name": {
+      "type": "string",
+      "title": "Database name",
+      "description": "Name of the Hotdata managed database to open or create, when store is 'hotdata'.",
+      "default": "claude-memory"
+    },
+    "database_id": {
+      "type": "string",
+      "title": "Database id",
+      "description": "Open this database id instead of looking the name up. Optional."
+    },
+    "embedder": {
+      "type": "string",
+      "title": "Embedder",
+      "description": "'hashed' is built in: no key, no network, matches words. 'openai' needs OPENAI_API_KEY and matches meaning.",
+      "options": [
+        "hashed",
+        "openai"
+      ],
+      "default": "hashed"
+    },
+    "scope_prefix": {
+      "type": "string",
+      "title": "Scope prefix",
+      "description": "First label of the namespace. Records go under <prefix>/<project>.",
+      "default": "claude"
+    },
+    "budget": {
+      "type": "number",
+      "title": "Context budget",
+      "description": "Characters of memory to load at session start.",
+      "default": 2000,
+      "min": 200,
+      "max": 20000
+    },
+    "workspace_id": {
+      "type": "string",
+      "title": "Workspace id",
+      "description": "Hotdata workspace that holds the memory database. Defaults to the first workspace of the login."
+    },
+    "api_key": {
+      "type": "string",
+      "title": "Hotdata API key",
+      "description": "Leave empty to use HOTDATA_API_KEY or the key that `hotdata auth login` saved.",
+      "sensitive": true
+    },
+    "api_url": {
+      "type": "string",
+      "title": "API URL",
+      "description": "Hotdata API base URL. Leave empty for the default."
+    },
+    "memory_root": {
+      "type": "directory",
+      "title": "Memory root",
+      "description": "Directory under which a written .md file counts as a memory note. Defaults to ~/.claude/projects."
+    }
+  }
+}

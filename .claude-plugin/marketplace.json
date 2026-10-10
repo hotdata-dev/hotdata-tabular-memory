@@ -1,0 +1,11 @@
+{
+  "name": "hotdata",
+  "owner": { "name": "Hotdata", "email": "eddie@hotdata.dev" },
+  "plugins": [
+    {
+      "name": "hotdata-memory",
+      "source": "./",
+      "description": "Stores Claude Code's auto memory as rows in Hotdata via hotmemory, and loads it back at session start."
+    }
+  ]
+}
