@@ -1,4 +1,7 @@
+# Local tool state and caches — never belongs in a plugin that is copied whole on install
+.ori/
 .venv/
 .pytest_cache/
 __pycache__/
 *.pyc
+.DS_Store
