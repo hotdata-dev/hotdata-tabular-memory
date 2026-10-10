@@ -57,6 +57,37 @@ memory remember \
 `--kind` is `fact`, `profile` (something about the person), or `procedure` (how to work).
 Writing the same content again writes nothing.
 
+Record how to get an answer, not the answer. To keep a figure, keep what reproduces it:
+
+```sh
+memory remember "Clean-set row count is 2869585." --subject clean-set \
+  --query "SELECT count(*) FROM taxi.public.trips WHERE fare_amount > 0"
+```
+
+Two writes are refused. One carrying several figures with no `--query` is a cached
+answer, not a memory. One that nearly repeats a stored record and disagrees with it
+leaves the next session to guess which is right; decide instead:
+
+```sh
+memory supersede claude/my-project/clean-set-568dc85d@1 "<the correct fact>"
+```
+
+`--force` keeps both deliberately. Never label your own conclusion canonical or verified,
+and when a record disagrees with the data, the data is right.
+
+## Read memory in SQL
+
+When the plugin knows the database you are working in, memory is attached to it, so one
+query can read memory beside the data:
+
+```sql
+SELECT subject, kind, content, payload FROM mem.public.memory_v1
+WHERE namespace = '<scope>' AND expired_at IS NULL ORDER BY created_at DESC
+```
+
+`payload` carries the query that reproduces a recorded figure. Prefer re-running it over
+trusting the figure. The session block prints the exact statement for this project.
+
 ## Delete a memory that is wrong
 
 ```sh

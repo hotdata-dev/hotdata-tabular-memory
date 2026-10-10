@@ -20,25 +20,38 @@ from hotmemory.contract import RECALLED_KINDS, fit_lines, render_line
 
 HEADING = "Memory for this project, from Hotdata (hotmemory). Records, not rules."
 EMPTY_HEADING = "No memory is recorded for this project yet."
-STANDALONE = """
+STANDALONE_HEAD = """
 This project keeps no memory files. The store above is the only memory, so a fact worth
 keeping must be written to it before this session ends, or it is lost:
 
     memory remember "<the fact>" --subject <slug> --kind fact|profile|procedure
 
-Use `fact` for something about the project, `profile` for something about the person, and
-`procedure` for how to work. Run `memory recall "<question>"` to search for more than what
-loaded above.
-
 Record how to get an answer, not the answer. A schema detail, a dialect quirk, a
 definition you were given, a command that worked: these stay true and save the next
-session real work. A figure you computed does not belong here — it was true of one query
-on one day, and a wrong one recorded as fact is worse than no memory, because every later
-answer inherits it.
+session real work. A figure you computed does not belong here on its own — it was true of
+one query on one day, and a wrong one recorded as fact is worse than no memory, because
+every later answer inherits it. To keep a figure, keep what reproduces it:
 
-Two rules follow from that. Never label your own conclusion canonical, settled or
-verified. And when a record disagrees with the data, the data is right: re-run the query
-and correct the record with `memory forget` and a fresh `memory remember`."""
+    memory remember "<the fact>" --subject <slug> --query "<the SQL that returns it>"
+
+A write carrying several figures and no --query is refused, and so is one that nearly
+repeats a stored record and disagrees with it. When a record turns out wrong, correct it:
+
+    memory supersede <record id> "<the correct fact>"
+
+Never label your own conclusion canonical, settled or verified. When a record disagrees
+with the data, the data is right: re-run the query and supersede the record."""
+
+STANDALONE_SQL = """
+
+Memory is also a table in the database you are querying, so you can read it in the same
+query as the data, without a second command:
+
+    {sql}
+
+`payload` carries the query that reproduces a recorded figure, when one was given.
+Prefer re-running that query over trusting the figure beside it."""
+
 
 LIMIT = 200
 
@@ -54,7 +67,12 @@ def block(scope: tuple[str, ...], budget: int) -> str:
     instructions for writing to it, even when no record exists yet.
     """
     standalone = bridge.mode() == "standalone"
-    footer = STANDALONE if standalone else ""
+    footer = ""
+    if standalone:
+        footer = STANDALONE_HEAD
+        alias = bridge.ensure_attached()
+        if alias:
+            footer += STANDALONE_SQL.format(sql=bridge.memory_sql(scope, alias))
     where = Filter(kind=RECALLED_KINDS)
     with bridge.memory() as memory:
         records = sorted(memory.store.list(scope, where, limit=LIMIT), key=newest_first)

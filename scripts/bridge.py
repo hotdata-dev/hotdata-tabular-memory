@@ -21,6 +21,7 @@ import fcntl
 import json
 import os
 import re
+import subprocess
 import zlib
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
@@ -167,6 +168,65 @@ def budget() -> int:
         return max(200, int(float(option("budget", "2000"))))
     except ValueError:
         return 2000
+
+
+# A record that is mostly figures is a conclusion, not a method. Three or more of
+# these, with no query to reproduce them, is a cached answer rather than a memory.
+FIGURE = re.compile(r"(?<![\w.])\d[\d,]*(?:\.\d+)?(?![\w])")
+FIGURE_LIMIT = 3
+NEAR = 0.2
+
+
+def figures(content: str) -> list[str]:
+    """Return the figures in `content` that look like results rather than identifiers."""
+    found = []
+    for match in FIGURE.finditer(content):
+        text = match.group(0)
+        digits = text.replace(",", "").replace(".", "")
+        if len(digits) >= 3 or "." in text:
+            found.append(text)
+    return found
+
+
+def reads_as_a_conclusion(content: str) -> bool:
+    """Return True if `content` is carrying computed results with nothing to re-run."""
+    return len(figures(content)) >= FIGURE_LIMIT
+
+
+def memory_sql(scope: Sequence[str], alias: str = "mem") -> str:
+    """Return the SQL that reads this project's memory from the working database."""
+    namespace = "/".join(scope)
+    return (
+        f"SELECT subject, kind, content, payload, created_at "
+        f"FROM {alias}.public.memory_v1 "
+        f"WHERE namespace = '{namespace}' AND expired_at IS NULL "
+        f"ORDER BY created_at DESC"
+    )
+
+
+def ensure_attached(alias: str = "mem") -> str:
+    """Attach the memory database to the working one, so SQL can read both at once.
+
+    Returns the alias on success and an empty string when there is nothing to attach
+    or the attach fails. Attaching again is harmless, so this never needs to ask first.
+    """
+    work = option("work_database")
+    store = option("database_id")
+    if not work or not store or work == store:
+        return ""
+    credentials()
+    try:
+        done = subprocess.run(
+            ["hotdata", "databases", "attach", store, "--alias", alias,
+             "--database", work],
+            capture_output=True, text=True, timeout=120, env=os.environ,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    output = (done.stdout + done.stderr).lower()
+    if done.returncode == 0 or "already" in output:
+        return alias
+    return ""
 
 
 # ------------------------------------------------------------------------- embedder

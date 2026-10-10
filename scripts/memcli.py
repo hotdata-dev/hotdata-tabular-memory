@@ -11,7 +11,7 @@ import os
 import sys
 
 import bridge
-from hotmemory import Fact, Filter
+from hotmemory import Fact, Filter, normalize
 from hotmemory.contract import RECALLED_KINDS, fit_lines, render_line
 
 
@@ -53,16 +53,68 @@ def cmd_list(args) -> int:
 
 
 def cmd_remember(args) -> int:
+    """Write one fact, after two checks that the content is worth keeping.
+
+    A record carrying several figures and no query is a cached answer: it was true of
+    one query on one day, and every later session inherits it. A record that nearly
+    repeats one already stored is a second opinion, and a store holding both leaves the
+    next session to guess. Neither is written.
+    """
+    payload = {}
+    if args.query:
+        payload["query"] = args.query
+    if not args.query and bridge.reads_as_a_conclusion(args.content):
+        found = ", ".join(bridge.figures(args.content)[:5])
+        print(
+            f"refused: this records figures ({found}) with no query to reproduce them.\n"
+            "A figure was true of one query on one day. Record the query that produces "
+            "it, with --query \"<sql>\", or record the method instead of the result.",
+            file=sys.stderr,
+        )
+        return 2
     fact = Fact(
         kind=args.kind,
         subject=args.subject,
         content=args.content,
         tags=tuple(args.tags),
         sources=tuple(args.sources),
+        payload=payload,
     )
+    scope = scope_of(args)
     with bridge.memory(write=True) as memory:
-        ids = memory.remember([fact], scope_of(args), actor=args.actor)
+        if not args.force:
+            near = [
+                hit for hit in memory.candidates(fact, [scope], k=3)
+                if hit.distance is not None and hit.distance <= bridge.NEAR
+                and normalize(hit.record.content) != normalize(fact.content)
+            ]
+            if near:
+                hit = near[0]
+                print(
+                    f"refused: this nearly repeats a record already stored, and the two "
+                    f"disagree.\n\n  stored: {hit.record.id}\n  {hit.record.content[:300]}\n\n"
+                    "Decide which is right. Replace the stored one with\n"
+                    f"  memory supersede {hit.record.id} \"<the correct fact>\"\n"
+                    "or keep both deliberately with --force.",
+                    file=sys.stderr,
+                )
+                return 2
+        ids = memory.remember([fact], scope, actor=args.actor)
     print("\n".join(ids))
+    return 0
+
+
+def cmd_supersede(args) -> int:
+    """Replace the current revision of the record named by `id`."""
+    scope = scope_of(args)
+    namespace, _, rest = args.id.rpartition("/")
+    key = rest.split("@")[0]
+    fact = Fact(kind=args.kind, subject=args.subject, content=args.content,
+                payload={"query": args.query} if args.query else {})
+    with bridge.memory(write=True) as memory:
+        new_id = memory.supersede(tuple(namespace.split("/")), key, fact,
+                                  actor=args.actor)
+    print(new_id)
     return 0
 
 
@@ -117,7 +169,20 @@ def main(argv: list[str] | None = None) -> int:
     remember.add_argument("--tag", action="append", default=[], dest="tags")
     remember.add_argument("--source", action="append", default=[], dest="sources")
     remember.add_argument("--actor", default="claude-code")
+    remember.add_argument("--query", default="",
+                          help="the SQL that reproduces this, when it carries a figure")
+    remember.add_argument("--force", action="store_true",
+                          help="write even though it nearly repeats a stored record")
     remember.set_defaults(run=cmd_remember)
+
+    sup = sub.add_parser("supersede", help="replace a record that turned out wrong")
+    sup.add_argument("id", help="the record id to replace")
+    sup.add_argument("content")
+    sup.add_argument("--subject", default="")
+    sup.add_argument("--kind", default="fact", choices=["fact", "profile", "procedure"])
+    sup.add_argument("--query", default="")
+    sup.add_argument("--actor", default="claude-code")
+    sup.set_defaults(run=cmd_supersede)
 
     forget = sub.add_parser("forget", help="delete every revision of the keys of these ids")
     forget.add_argument("ids", nargs="+")

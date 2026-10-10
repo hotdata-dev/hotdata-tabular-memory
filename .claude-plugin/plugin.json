@@ -1,7 +1,7 @@
 {
   "name": "hotdata-memory",
   "displayName": "Hotdata Memory",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Stores Claude Code's auto memory as rows in Hotdata via hotmemory, and loads it back at session start.",
   "author": {
     "name": "Eddie",
@@ -95,6 +95,11 @@
       "type": "string",
       "title": "Project",
       "description": "Name the project instead of letting the repository or the directory name it. Memory is kept under <scope prefix>/<project>."
+    },
+    "work_database": {
+      "type": "string",
+      "title": "Working database",
+      "description": "The Hotdata database this project queries. The memory database is attached to it, so memory can be read with SQL beside the data."
     }
   }
 }

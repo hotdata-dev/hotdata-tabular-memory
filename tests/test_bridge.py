@@ -260,3 +260,84 @@ def test_standalone_warns_against_recording_a_computed_figure(env, monkeypatch):
     assert "Record how to get an answer, not the answer" in context
     assert "canonical" in context
     assert "the data is right" in context
+
+
+# ------------------------------------------------- memory keeps methods, not results
+
+
+@pytest.mark.parametrize(
+    ("content", "conclusion"),
+    [
+        ("The clean set has 2869585 rows; mean fare 17.49; share 0.8009", True),
+        ("Fare per mile is 17.49 and the median duration is 8.37 minutes", False),
+        ("date_diff does not exist; use EXTRACT(EPOCH FROM (a - b)) for seconds", False),
+        ("taxi.public.trips has 19 columns and uppercase names need quoting", False),
+        ("Counts: 38341 non-positive fares, 41391 tips over fare, 60371 zero distance", True),
+    ],
+)
+def test_a_record_carrying_several_figures_reads_as_a_conclusion(content, conclusion):
+    assert bridge.reads_as_a_conclusion(content) is conclusion
+
+
+def test_a_version_number_is_not_a_result():
+    assert bridge.figures("DataFusion 55 has no date_diff") == []
+
+
+def test_the_memory_sql_names_this_project_only():
+    sql = bridge.memory_sql(("claude", "taxi"))
+    assert "mem.public.memory_v1" in sql
+    assert "namespace = 'claude/taxi'" in sql
+
+
+def memcli(args, env_extra=None):
+    """Run the memory command the way the skill tells Claude to."""
+    import subprocess
+    return subprocess.run(
+        [sys.executable, str(SCRIPTS / "memcli.py"), *args],
+        capture_output=True, text=True,
+        env={**os.environ, **(env_extra or {}), "PYTHONPATH": str(SCRIPTS)},
+    )
+
+
+def test_figures_without_a_query_are_refused(env):
+    out = memcli(["--scope", "claude/t", "remember",
+                  "clean set 2869585 rows, mean fare 17.49, share 0.8009",
+                  "--subject", "clean-set"])
+    assert out.returncode == 2
+    assert "no query to reproduce them" in out.stderr
+
+
+def test_figures_with_a_query_are_kept(env):
+    out = memcli(["--scope", "claude/t", "remember",
+                  "clean set 2869585 rows, mean fare 17.49, share 0.8009",
+                  "--subject", "clean-set", "--query", "SELECT count(*) FROM trips"])
+    assert out.returncode == 0, out.stderr
+    with bridge.memory() as memory:
+        record = memory.store.list(("claude", "t"), limit=5)[0]
+    assert record.payload["query"] == "SELECT count(*) FROM trips"
+
+
+def test_a_near_repeat_that_disagrees_is_refused(env):
+    first = ["--scope", "claude/t", "remember",
+             "Clean set keeps rows where fare_amount > 0 and trip_distance > 0",
+             "--subject", "clean-set"]
+    assert memcli(first).returncode == 0
+    second = ["--scope", "claude/t", "remember",
+              "Clean set keeps rows where fare_amount > 0 and trip_distance > 0 "
+              "and tip_amount <= fare_amount",
+              "--subject", "clean-set"]
+    out = memcli(second)
+    assert out.returncode == 2
+    assert "nearly repeats a record already stored" in out.stderr
+    assert "memory supersede" in out.stderr
+    out = memcli([*second, "--force"])
+    assert out.returncode == 0, out.stderr
+
+
+def test_writing_the_same_fact_again_is_still_free(env):
+    args = ["--scope", "claude/t", "remember", "date_diff does not exist here",
+            "--subject", "dialect"]
+    assert memcli(args).returncode == 0
+    assert memcli(args).returncode == 0
+    with bridge.memory() as memory:
+        assert len(memory.store.list(("claude", "t"), limit=10)) == 1
