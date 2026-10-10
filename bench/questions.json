@@ -1,0 +1,452 @@
+[
+ {
+  "id": "q01",
+  "phase": 1,
+  "ask": "How many rows are in the trips table?",
+  "sql": "SELECT count(*) FROM t",
+  "kind": "number",
+  "tol": 0,
+  "answer": 2964624.0
+ },
+ {
+  "id": "q02",
+  "phase": 1,
+  "ask": "How many columns does the trips table have?",
+  "sql": "SELECT count(*) FROM (DESCRIBE SELECT * FROM t)",
+  "kind": "number",
+  "tol": 0,
+  "answer": 19.0
+ },
+ {
+  "id": "q03",
+  "phase": 1,
+  "ask": "How many trips have a fare_amount of zero or less?",
+  "sql": "SELECT count(*) FROM t WHERE fare_amount <= 0",
+  "kind": "number",
+  "tol": 0,
+  "answer": 38341.0
+ },
+ {
+  "id": "q04",
+  "phase": 1,
+  "ask": "How many trips have a tip_amount greater than their fare_amount?",
+  "sql": "SELECT count(*) FROM t WHERE tip_amount > fare_amount",
+  "kind": "number",
+  "tol": 0,
+  "answer": 41391.0
+ },
+ {
+  "id": "q05",
+  "phase": 1,
+  "ask": "How many trips have a pickup datetime outside January 2024?",
+  "sql": "SELECT count(*) FROM t WHERE tpep_pickup_datetime < TIMESTAMP '2024-01-01' OR tpep_pickup_datetime >= TIMESTAMP '2024-02-01'",
+  "kind": "number",
+  "tol": 0,
+  "answer": 18.0
+ },
+ {
+  "id": "q06",
+  "phase": 1,
+  "ask": "How many trips have a trip_distance of zero?",
+  "sql": "SELECT count(*) FROM t WHERE trip_distance = 0",
+  "kind": "number",
+  "tol": 0,
+  "answer": 60371.0
+ },
+ {
+  "id": "q07",
+  "phase": 1,
+  "ask": "How many trips remain after removing rows with a non-positive fare_amount, non-positive total_amount, non-positive trip_distance, a pickup outside January 2024, or a dropoff at or before the pickup? Call this the clean set; every later question means the clean set when it says trips.",
+  "sql": "SELECT count(*) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n",
+  "kind": "number",
+  "tol": 0,
+  "answer": 2869585.0
+ },
+ {
+  "id": "q08",
+  "phase": 1,
+  "ask": "How many distinct PULocationID values appear in the clean set?",
+  "sql": "SELECT count(DISTINCT \"PULocationID\") FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n",
+  "kind": "number",
+  "tol": 0,
+  "answer": 257.0
+ },
+ {
+  "id": "q09",
+  "phase": 1,
+  "ask": "How many rows does the taxi zone lookup table have?",
+  "sql": "SELECT count(*) FROM z",
+  "kind": "number",
+  "tol": 0,
+  "answer": 265.0
+ },
+ {
+  "id": "q10",
+  "phase": 1,
+  "ask": "Which borough does LocationID 132 belong to?",
+  "sql": "SELECT \"Borough\" FROM z WHERE \"LocationID\" = 132",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "Queens"
+ },
+ {
+  "id": "q11",
+  "phase": 2,
+  "ask": "In the clean set, how many trips went from LocationID 132 to 230?",
+  "sql": "SELECT count(*) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=132 AND \"DOLocationID\"=230",
+  "kind": "number",
+  "tol": 0,
+  "answer": 5759.0
+ },
+ {
+  "id": "q12",
+  "phase": 2,
+  "ask": "In the clean set, what is the mean total_amount for trips from LocationID 132 to 230? Give dollars to two decimals.",
+  "sql": "SELECT round(avg(total_amount), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=132 AND \"DOLocationID\"=230",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 94.13
+ },
+ {
+  "id": "q13",
+  "phase": 2,
+  "ask": "In the clean set, what is the median trip duration in minutes for trips from LocationID 132 to 230? Give minutes to two decimals.",
+  "sql": "SELECT round(median(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=132 AND \"DOLocationID\"=230",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 49.53
+ },
+ {
+  "id": "q14",
+  "phase": 2,
+  "ask": "In the clean set, how many trips went from LocationID 138 to 161?",
+  "sql": "SELECT count(*) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=138 AND \"DOLocationID\"=161",
+  "kind": "number",
+  "tol": 0,
+  "answer": 3257.0
+ },
+ {
+  "id": "q15",
+  "phase": 2,
+  "ask": "In the clean set, what is the mean total_amount for trips from LocationID 138 to 161? Give dollars to two decimals.",
+  "sql": "SELECT round(avg(total_amount), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=138 AND \"DOLocationID\"=161",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 73.65
+ },
+ {
+  "id": "q16",
+  "phase": 2,
+  "ask": "In the clean set, what is the median trip duration in minutes for trips from LocationID 138 to 161? Give minutes to two decimals.",
+  "sql": "SELECT round(median(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=138 AND \"DOLocationID\"=161",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 30.17
+ },
+ {
+  "id": "q17",
+  "phase": 2,
+  "ask": "In the clean set, how many trips went from LocationID 161 to 237?",
+  "sql": "SELECT count(*) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=161 AND \"DOLocationID\"=237",
+  "kind": "number",
+  "tol": 0,
+  "answer": 10139.0
+ },
+ {
+  "id": "q18",
+  "phase": 2,
+  "ask": "In the clean set, what is the mean total_amount for trips from LocationID 161 to 237? Give dollars to two decimals.",
+  "sql": "SELECT round(avg(total_amount), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=161 AND \"DOLocationID\"=237",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 17.06
+ },
+ {
+  "id": "q19",
+  "phase": 2,
+  "ask": "In the clean set, what is the median trip duration in minutes for trips from LocationID 161 to 237? Give minutes to two decimals.",
+  "sql": "SELECT round(median(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=161 AND \"DOLocationID\"=237",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 8.37
+ },
+ {
+  "id": "q20",
+  "phase": 2,
+  "ask": "In the clean set, how many trips went from LocationID 237 to 236?",
+  "sql": "SELECT count(*) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=237 AND \"DOLocationID\"=236",
+  "kind": "number",
+  "tol": 0,
+  "answer": 21641.0
+ },
+ {
+  "id": "q21",
+  "phase": 2,
+  "ask": "In the clean set, what is the mean total_amount for trips from LocationID 237 to 236? Give dollars to two decimals.",
+  "sql": "SELECT round(avg(total_amount), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=237 AND \"DOLocationID\"=236",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 15.74
+ },
+ {
+  "id": "q22",
+  "phase": 2,
+  "ask": "In the clean set, what is the median trip duration in minutes for trips from LocationID 237 to 236? Give minutes to two decimals.",
+  "sql": "SELECT round(median(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=237 AND \"DOLocationID\"=236",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 6.8
+ },
+ {
+  "id": "q23",
+  "phase": 2,
+  "ask": "In the clean set, how many trips went from LocationID 186 to 79?",
+  "sql": "SELECT count(*) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=186 AND \"DOLocationID\"=79",
+  "kind": "number",
+  "tol": 0,
+  "answer": 2631.0
+ },
+ {
+  "id": "q24",
+  "phase": 2,
+  "ask": "In the clean set, what is the mean total_amount for trips from LocationID 186 to 79? Give dollars to two decimals.",
+  "sql": "SELECT round(avg(total_amount), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=186 AND \"DOLocationID\"=79",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 23.77
+ },
+ {
+  "id": "q25",
+  "phase": 2,
+  "ask": "In the clean set, what is the median trip duration in minutes for trips from LocationID 186 to 79? Give minutes to two decimals.",
+  "sql": "SELECT round(median(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"PULocationID\"=186 AND \"DOLocationID\"=79",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 15.2
+ },
+ {
+  "id": "q26",
+  "phase": 3,
+  "ask": "Among pickup-dropoff LocationID pairs in the clean set with at least 500 trips, which pair has the highest mean total_amount? Answer as PU-DO, e.g. 132-230.",
+  "sql": "SELECT pu || '-' || do_id FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) ORDER BY fare DESC, pu, do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "138-265"
+ },
+ {
+  "id": "q27",
+  "phase": 3,
+  "ask": "Among pairs with at least 500 trips, which has the lowest mean total_amount? Answer as PU-DO.",
+  "sql": "SELECT pu || '-' || do_id FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) ORDER BY fare ASC, pu, do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "166-151"
+ },
+ {
+  "id": "q28",
+  "phase": 3,
+  "ask": "Among pairs with at least 500 trips, which has the highest mean trip duration in minutes? Answer as PU-DO.",
+  "sql": "SELECT pu || '-' || do_id FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) ORDER BY mins DESC, pu, do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "68-132"
+ },
+ {
+  "id": "q29",
+  "phase": 3,
+  "ask": "Among pairs with at least 500 trips, which has the highest mean tip as a share of fare_amount? Answer as PU-DO.",
+  "sql": "SELECT pu || '-' || do_id FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) ORDER BY tip_rate DESC, pu, do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "148-68"
+ },
+ {
+  "id": "q30",
+  "phase": 3,
+  "ask": "How many pickup-dropoff pairs in the clean set have at least 500 trips?",
+  "sql": "SELECT count(*) FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n)",
+  "kind": "number",
+  "tol": 0,
+  "answer": 1380.0
+ },
+ {
+  "id": "q31",
+  "phase": 3,
+  "ask": "Which pickup zone name has the most clean-set trips?",
+  "sql": "SELECT z.\"Zone\" FROM t JOIN z ON t.\"PULocationID\" = z.\"LocationID\" WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n GROUP BY 1 ORDER BY count(*) DESC LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "Midtown Center"
+ },
+ {
+  "id": "q32",
+  "phase": 3,
+  "ask": "Which borough has the most clean-set pickups?",
+  "sql": "SELECT z.\"Borough\" FROM t JOIN z ON t.\"PULocationID\" = z.\"LocationID\" WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n GROUP BY 1 ORDER BY count(*) DESC LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "Manhattan"
+ },
+ {
+  "id": "q33",
+  "phase": 3,
+  "ask": "What is the mean total_amount of clean-set trips picked up in Manhattan? Two decimals.",
+  "sql": "SELECT round(avg(total_amount), 2) FROM t JOIN z ON t.\"PULocationID\" = z.\"LocationID\" WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND z.\"Borough\" = 'Manhattan'",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 22.76
+ },
+ {
+  "id": "q34",
+  "phase": 3,
+  "ask": "In the clean set, which hour of the day (0-23, by pickup time) has the most trips?",
+  "sql": "SELECT EXTRACT(HOUR FROM tpep_pickup_datetime) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n GROUP BY 1 ORDER BY count(*) DESC LIMIT 1",
+  "kind": "number",
+  "tol": 0,
+  "answer": 18.0
+ },
+ {
+  "id": "q35",
+  "phase": 3,
+  "ask": "In the clean set, which hour of the day has the highest mean total_amount?",
+  "sql": "SELECT EXTRACT(HOUR FROM tpep_pickup_datetime) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n GROUP BY 1 ORDER BY avg(total_amount) DESC LIMIT 1",
+  "kind": "number",
+  "tol": 0,
+  "answer": 5.0
+ },
+ {
+  "id": "q36",
+  "phase": 3,
+  "ask": "In the clean set, what is the mean fare per mile (total_amount / trip_distance) over all trips? Two decimals.",
+  "sql": "SELECT round(avg(total_amount / trip_distance), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 17.49
+ },
+ {
+  "id": "q37",
+  "phase": 3,
+  "ask": "Among pairs with at least 500 trips, which has the highest mean trip_distance? Answer as PU-DO.",
+  "sql": "SELECT pu || '-' || do_id FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) ORDER BY miles DESC, pu, do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "233-138"
+ },
+ {
+  "id": "q38",
+  "phase": 3,
+  "ask": "How many clean-set trips were paid by credit card (payment_type = 1)?",
+  "sql": "SELECT count(*) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND payment_type = 1",
+  "kind": "number",
+  "tol": 0,
+  "answer": 2298339.0
+ },
+ {
+  "id": "q39",
+  "phase": 3,
+  "ask": "What share of clean-set trips were paid by credit card? Give a fraction to four decimals.",
+  "sql": "SELECT round(sum(CASE WHEN payment_type = 1 THEN 1 ELSE 0 END)::DOUBLE / count(*), 4) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n",
+  "kind": "number",
+  "tol": 0.0001,
+  "answer": 0.8009
+ },
+ {
+  "id": "q40",
+  "phase": 3,
+  "ask": "In the clean set, what is the mean Airport_fee over trips where it is greater than zero? Two decimals.",
+  "sql": "SELECT round(avg(\"Airport_fee\"), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND \"Airport_fee\" > 0",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 1.75
+ },
+ {
+  "id": "q41",
+  "phase": 4,
+  "ask": "Define route efficiency as mean total_amount divided by mean duration in minutes. Among pairs with at least 500 clean-set trips, which pair has the highest efficiency? Answer as PU-DO.",
+  "sql": "SELECT pu || '-' || do_id FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) ORDER BY fare / mins DESC, pu, do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "138-138"
+ },
+ {
+  "id": "q42",
+  "phase": 4,
+  "ask": "Using that same efficiency measure, what is its value for the winning pair? Two decimals.",
+  "sql": "SELECT round(max(fare / mins), 2) FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n)",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 3.54
+ },
+ {
+  "id": "q43",
+  "phase": 4,
+  "ask": "Among pairs with at least 500 clean-set trips and a mean trip_distance of at least 3 miles, which has the highest mean total_amount per mile? Answer as PU-DO.",
+  "sql": "SELECT pu || '-' || do_id FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) WHERE miles >= 3 ORDER BY fare / miles DESC, pu, do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "138-138"
+ },
+ {
+  "id": "q44",
+  "phase": 4,
+  "ask": "Among pairs with at least 1000 clean-set trips, which has the best combination of high mean total_amount and low mean duration, scored as mean total_amount minus mean duration in minutes? Answer as PU-DO.",
+  "sql": "SELECT pu || '-' || do_id FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) WHERE n >= 1000 ORDER BY fare - mins DESC, pu, do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "138-265"
+ },
+ {
+  "id": "q45",
+  "phase": 4,
+  "ask": "Name the pickup and dropoff zones of that last winning pair, as '<pickup zone> to <dropoff zone>'.",
+  "sql": "SELECT zp.\"Zone\" || ' to ' || zd.\"Zone\" FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) b JOIN z zp ON b.pu = zp.\"LocationID\" JOIN z zd ON b.do_id = zd.\"LocationID\" WHERE b.n >= 1000 ORDER BY b.fare - b.mins DESC, b.pu, b.do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "LaGuardia Airport to Outside of NYC"
+ },
+ {
+  "id": "q46",
+  "phase": 4,
+  "ask": "Restricting to clean-set trips picked up between 17:00 and 19:59 inclusive, and to pairs with at least 200 such trips, which pair has the highest mean total_amount? Answer as PU-DO.",
+  "sql": "SELECT \"PULocationID\" || '-' || \"DOLocationID\" FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND EXTRACT(HOUR FROM tpep_pickup_datetime) BETWEEN 17 AND 19 GROUP BY 1, \"PULocationID\", \"DOLocationID\" HAVING count(*) >= 200 ORDER BY avg(total_amount) DESC, \"PULocationID\", \"DOLocationID\" LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "138-265"
+ },
+ {
+  "id": "q47",
+  "phase": 4,
+  "ask": "For that evening-peak winner, what is its mean total_amount? Two decimals.",
+  "sql": "SELECT round(avg(total_amount), 2) FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n AND EXTRACT(HOUR FROM tpep_pickup_datetime) BETWEEN 17 AND 19 GROUP BY \"PULocationID\", \"DOLocationID\" HAVING count(*) >= 200 ORDER BY avg(total_amount) DESC, \"PULocationID\", \"DOLocationID\" LIMIT 1",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 147.1
+ },
+ {
+  "id": "q48",
+  "phase": 4,
+  "ask": "Among pairs with at least 500 clean-set trips, how many have a mean total_amount above 50 dollars?",
+  "sql": "SELECT count(*) FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) WHERE fare > 50",
+  "kind": "number",
+  "tol": 0,
+  "answer": 157.0
+ },
+ {
+  "id": "q49",
+  "phase": 4,
+  "ask": "Among pairs with at least 500 clean-set trips, what is the mean of their mean fares per mile? Two decimals.",
+  "sql": "SELECT round(avg(fare / miles), 2) FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n)",
+  "kind": "number",
+  "tol": 0.01,
+  "answer": 11.59
+ },
+ {
+  "id": "q50",
+  "phase": 4,
+  "ask": "Taking the ten pairs with the most clean-set trips, which of those ten has the highest mean total_amount? Answer as PU-DO.",
+  "sql": "SELECT pu || '-' || do_id FROM (SELECT * FROM (\n  SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS do_id, count(*) AS n,\n         avg(total_amount) AS fare,\n         avg(EXTRACT(EPOCH FROM (tpep_dropoff_datetime - tpep_pickup_datetime)) / 60.0) AS mins,\n         avg(trip_distance) AS miles,\n         avg(tip_amount / nullif(fare_amount, 0)) AS tip_rate\n  FROM t WHERE \n  fare_amount > 0 AND total_amount > 0 AND trip_distance > 0\n  AND tpep_pickup_datetime >= TIMESTAMP '2024-01-01'\n  AND tpep_pickup_datetime < TIMESTAMP '2024-02-01'\n  AND tpep_dropoff_datetime > tpep_pickup_datetime\n\n  GROUP BY 1, 2 HAVING count(*) >= 500\n) ORDER BY n DESC, pu, do_id LIMIT 10) ORDER BY fare DESC, pu, do_id LIMIT 1",
+  "kind": "string",
+  "tol": 0.01,
+  "answer": "161-236"
+ }
+]
