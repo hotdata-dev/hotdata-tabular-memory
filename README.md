@@ -32,7 +32,21 @@ and whatever the machine has, which turned out to be DuckDB.
 | $ / correct answer | $0.053 | $0.061 | $0.045 | $0.045 |
 | Seconds / session | 21s | 33s | 16s | 15s |
 
-Against working locally with no database: the same cost in dollars, **32% fewer turns, 30% fewer tokens and 29% less wall time**, with three accuracy points and three right-then-wrong flips recovered. Against the raw Hotdata CLI the gap is wider on every axis. Note the benchmark is 48MB on the agent's own machine, which is the case most favourable to the local baseline.
+Against working locally with no database: the same cost in dollars, **32% fewer turns, 30% fewer tokens and 29% less wall time**, with three accuracy points and three right-then-wrong flips recovered. Against the raw Hotdata CLI the gap is wider on every axis.
+
+Two things that result depends on, both measured:
+
+**The benchmark is 48MB on the agent's own machine** — the case most favourable to the
+local baseline, where DuckDB reads the parquet directly with no network, auth or
+transfer. Data larger than the machine, shared between agents, or already loaded is
+outside what it tests.
+
+**The gain depends on the model batching.** Repeating the run on Haiku 5.5 cut turns by
+2% and tokens by 13%, against 32% and 30% on Opus 5, and lost 1.5 points of accuracy.
+Haiku 5.5 calls `hd batch` as often as Opus in absolute terms but makes 70% more calls
+overall — it uses the affordance and keeps working the old way beside it. It also
+answers 97.5% of these questions unaided, so there was no accuracy headroom to recover.
+`bench/README.md` has the figures.
 
 ## What it does
 
@@ -116,7 +130,7 @@ The engine is Apache DataFusion. No `date_diff()` or `hour()` — `EXTRACT(EPOCH
 ## Develop
 
 ```sh
-./test.sh          # 55 tests against a fake `hotdata`, offline
+./test.sh          # 56 tests against a fake `hotdata`, offline
 ./test.sh -k guard
 ```
 

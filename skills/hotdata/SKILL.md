@@ -25,8 +25,9 @@ If a file is remote, give the URL rather than downloading it first.
 
 ## Ask several questions at once
 
-Every call costs a turn, and a turn re-sends everything you know. When you have more
-than one question, ask them together:
+Every call costs a turn, and a turn re-sends everything you know — about 22,000 tokens
+each time, whatever the call does. **If you have more than one question, ask them in one
+call.** That is where almost all of the saving is:
 
 ```sh
 hd batch "q11: SELECT count(*) FROM {{clean_set}} WHERE \"PULocationID\" = 132 AND \"DOLocationID\" = 230" \
@@ -44,7 +45,9 @@ SELECT z."Zone", count(*) AS n FROM {{clean_set}} t JOIN taxi.public.zones z ON 
 SQL
 ```
 
-Each result prints under its label. One failing query does not stop the rest.
+Each result prints under its label. One failing or refused query does not stop the
+rest, and does not discard the answers beside it — read every label before deciding
+anything is missing.
 
 ## Ask a question
 
