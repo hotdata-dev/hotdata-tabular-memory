@@ -251,7 +251,11 @@ def main() -> int:
     lock = threading.Lock()
     run_started = time.time()
 
+    halted = threading.Event()
+
     def session(task: dict) -> None:
+        if halted.is_set():
+            return
         work = root / "sessions" / task["id"]
         work.mkdir()
         fill = {**paths, "shared": str(shared), "cat": catalog}
@@ -270,6 +274,11 @@ def main() -> int:
             result = json.loads(proc.stdout)
         except json.JSONDecodeError:
             result = {"is_error": True, "result": proc.stdout[-2000:], "stderr": proc.stderr[-2000:]}
+        if result.get("is_error") and "limit" in str(result.get("result", "")).lower():
+            # Every later session would fail the same way; a run with holes in it
+            # cannot be compared, so stop and say so.
+            halted.set()
+            print(f"{name} HALTED at {task['id']}: {str(result.get('result'))[:120]}", flush=True)
         found = ANSWER.findall(result.get("result") or "")
         given = found[-1] if found else None
         result.update({"task": task["id"], "start": started - run_started,

@@ -63,6 +63,10 @@ def summarise(run: Path, truth: dict, tasks: dict) -> dict:
         return sum(u.get(k, 0) for k in ("input_tokens", "output_tokens",
                                           "cache_read_input_tokens", "cache_creation_input_tokens"))
 
+    # A session that failed before working (a spend limit, a crash) is not a cheap
+    # task. It is left out of every average and counted under `errors`.
+    failed = [s for s in sessions if s.get("is_error")]
+    sessions = [s for s in sessions if not s.get("is_error")]
     costs = [s.get("total_cost_usd") or 0 for s in sessions]
     third = max(1, len(sessions) // 3)
     labels = load_jsonl(run / "labels.jsonl")
@@ -97,7 +101,7 @@ def summarise(run: Path, truth: dict, tasks: dict) -> dict:
         "unknown_category": len(labels) - len(known),
         "unreadable": len(json.loads((run / "unreadable.json").read_text()))
                       if (run / "unreadable.json").exists() else 0,
-        "errors": sum(bool(s.get("is_error")) for s in sessions),
+        "errors": len(failed),
         "leaks": {s["task"]: l for s in sessions if (l := leaks(s))},
     }
 
