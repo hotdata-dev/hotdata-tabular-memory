@@ -68,7 +68,7 @@ Answer each question below. Work however you like, with whatever is on this mach
 
 When you are done, print one final line and nothing after it:
 
-ANSWERS {{{{"q01": <value>, "q02": <value>, ...}}}}
+ANSWERS {{"q01": <value>, "q02": <value>, ...}}
 
 A value is a bare number (no dollar sign, no thousands separator) or a string, matching
 what the question asks for. Use the question ids exactly as given.
@@ -89,7 +89,7 @@ the same one.
 
 Answer each question below. When you are done, print one final line and nothing after it:
 
-ANSWERS {{{{"q01": <value>, "q02": <value>, ...}}}}
+ANSWERS {{"q01": <value>, "q02": <value>, ...}}
 
 A value is a bare number (no dollar sign, no thousands separator) or a string, matching
 what the question asks for. Use the question ids exactly as given.
@@ -172,12 +172,20 @@ def parse_answers(text: str) -> dict:
         pass
     if match is None:
         return {}
-    raw = match.group(1)
-    for end in range(len(raw), 0, -1):
-        try:
-            return json.loads(raw[:end])
-        except json.JSONDecodeError:
-            continue
+    raw = match.group(1).strip()
+    # A model that takes the brief literally can wrap the object in a second pair of
+    # braces. Read what it meant rather than scoring the session zero.
+    candidates = [raw]
+    if raw.startswith("{{") and raw.endswith("}}"):
+        candidates.insert(0, raw[1:-1])
+    for text in candidates:
+        for end in range(len(text), 0, -1):
+            try:
+                found = json.loads(text[:end])
+            except json.JSONDecodeError:
+                continue
+            if isinstance(found, dict):
+                return found
     return {}
 
 
