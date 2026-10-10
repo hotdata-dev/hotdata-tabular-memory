@@ -44,6 +44,10 @@ def main() -> None:
                 # the model that did the work, not the one that titled the session
                 "models": [m for m, u in (row.get("modelUsage") or {}).items()
                            if (u.get("cacheReadInputTokens") or 0) > 1000],
+                # "unknown" means this CLI has no price for the model and is guessing,
+                # so the dollar figures for that arm are not to be published
+                "cost_basis": [u.get("costBasis") for m, u in (row.get("modelUsage") or {}).items()
+                               if (u.get("cacheReadInputTokens") or 0) > 1000],
             })
         path = agent / "answers.jsonl"
         if path.exists():
@@ -118,6 +122,7 @@ def main() -> None:
             },
             "stability": stability(graded),
             "models": sorted({m for r in rows for m in r.get("models", [])}),
+            "cost_basis": sorted({b for r in rows for b in r.get("cost_basis", []) if b}),
             "swarm": redundancy.swarm_metrics(runs_of[arm], arm.split("_")[0]),
             "tools": redundancy.tool_use(runs_of[arm], arm.split("_")[0]),
             "invented_filter_errors": redundancy.invented_filter_errors(graded),
@@ -153,7 +158,8 @@ def main() -> None:
     out.write_text(json.dumps(report, indent=1) + "\n")
     for arm, r in sorted(report.items()):
         s = r.get("swarm") or {}
-        print(f"{arm:9s} [{','.join(r['models']) or '?'}] acc={r['accuracy']:.1%} cost=${r['cost_total']:.2f} "
+        priced = "" if r["cost_basis"] == ["list"] else "  COST UNRELIABLE"
+        print(f"{arm:9s} [{','.join(r['models']) or '?'}]{priced} acc={r['accuracy']:.1%} cost=${r['cost_total']:.2f} "
               f"$/correct={r['cost_per_correct']:.3f} turns={r['turns_total']} "
               f"redundant={s.get('redundant_pct', '?')}% orient={s.get('orientation_queries', '?')} "
               f"invented={r['invented_filter_errors']}")

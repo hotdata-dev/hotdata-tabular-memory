@@ -444,12 +444,20 @@ def test_batch_reads_a_script_from_stdin_with_name_comments(env):
     assert "== total ==" in out.stdout and "== sample ==" in out.stdout
 
 
-def test_batch_keeps_going_past_a_refused_query(env):
+def test_one_refused_query_does_not_discard_the_answers_beside_it(env):
+    """A non-zero exit reads as total failure, and an agent throws the batch away."""
     project.project_database(create=True)
     out = hd(["batch", "bad: SELECT * FROM t", "good: SELECT count(*) FROM t"], env)
-    assert out.returncode == 2
+    assert out.returncode == 0, out.stderr
     assert "== bad ==" in out.stdout and "refused" in out.stdout
     assert "== good ==" in out.stdout and "2869585" in out.stdout
+
+
+def test_a_batch_where_everything_failed_does_exit_non_zero(env):
+    project.project_database(create=True)
+    out = hd(["batch", "a: SELECT * FROM t", "b: SELECT * FROM taxi.public.trips"], env)
+    assert out.returncode == 2
+    assert "every query failed" in out.stderr
 
 
 def test_batch_labels_unlabelled_queries_by_position(env):

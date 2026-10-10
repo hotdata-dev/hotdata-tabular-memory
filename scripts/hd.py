@@ -161,8 +161,8 @@ def cmd_batch(args) -> int:
     items = split_batch(args.sql, stdin_text)
     if not items:
         raise HotdataError("nothing to run: pass 'label: SELECT ...' arguments or a script on stdin")
-    worst = 0
     cap = row_cap()
+    answered = 0
     for label, sql in items:
         print(f"== {label} ==")
         try:
@@ -170,8 +170,14 @@ def cmd_batch(args) -> int:
         except HotdataError as error:
             code, text = 1, f"error: {error}\n"
         sys.stdout.write(text if text.endswith("\n") else text + "\n")
-        worst = max(worst, code)
-    return worst
+        answered += code == 0
+    # One refused query must not throw away the answers beside it. A non-zero exit
+    # makes the whole call read as a failure, and an agent then discards results it
+    # already has; each query's own outcome is printed under its label instead.
+    if answered:
+        return 0
+    print(f"every query failed: {len(items)} of {len(items)}", file=sys.stderr)
+    return 2
 
 
 def cmd_define(args) -> int:
