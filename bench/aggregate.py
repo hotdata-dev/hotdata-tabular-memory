@@ -41,6 +41,9 @@ def main() -> None:
                 "cache_read": usage.get("cache_read_input_tokens", 0),
                 "cache_write": usage.get("cache_creation_input_tokens", 0),
                 "error": bool(row.get("is_error")),
+                # the model that did the work, not the one that titled the session
+                "models": [m for m, u in (row.get("modelUsage") or {}).items()
+                           if (u.get("cacheReadInputTokens") or 0) > 1000],
             })
         path = agent / "answers.jsonl"
         if path.exists():
@@ -114,6 +117,7 @@ def main() -> None:
                 str(k): sum(v) for k, v in sorted(pass_turns.items())
             },
             "stability": stability(graded),
+            "models": sorted({m for r in rows for m in r.get("models", [])}),
             "swarm": redundancy.swarm_metrics(runs_of[arm], arm.split("_")[0]),
             "tools": redundancy.tool_use(runs_of[arm], arm.split("_")[0]),
             "invented_filter_errors": redundancy.invented_filter_errors(graded),
@@ -149,7 +153,7 @@ def main() -> None:
     out.write_text(json.dumps(report, indent=1) + "\n")
     for arm, r in sorted(report.items()):
         s = r.get("swarm") or {}
-        print(f"{arm:9s} acc={r['accuracy']:.1%} cost=${r['cost_total']:.2f} "
+        print(f"{arm:9s} [{','.join(r['models']) or '?'}] acc={r['accuracy']:.1%} cost=${r['cost_total']:.2f} "
               f"$/correct={r['cost_per_correct']:.3f} turns={r['turns_total']} "
               f"redundant={s.get('redundant_pct', '?')}% orient={s.get('orientation_queries', '?')} "
               f"invented={r['invented_filter_errors']}")

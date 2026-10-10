@@ -10,6 +10,8 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 OUT="${1:-$HERE/runs}"
 REPLICATES="${REPLICATES:-4}"
 SESSIONS="${SESSIONS:-10}"
+MODEL="${MODEL:-claude-opus-5}"
+TAG="${TAG:-bench}"
 
 mkdir -p "$OUT"
 for r in $(seq 1 "$REPLICATES"); do
@@ -17,7 +19,8 @@ for r in $(seq 1 "$REPLICATES"); do
   pids=()
   for arm in ${ARMS:-bare plugin}; do
     python3 "$HERE/runner.py" --arm "$arm" --replicate "$r" --out "$OUT" \
-      --sessions "$SESSIONS" > "$OUT/$arm-r$r.log" 2>&1 &
+      --sessions "$SESSIONS" --model "$MODEL" --tag "$TAG" \
+      > "$OUT/$arm-r$r.log" 2>&1 &
     pids+=($!)
   done
   for pid in "${pids[@]}"; do wait "$pid"; done
@@ -25,4 +28,4 @@ for r in $(seq 1 "$REPLICATES"); do
     tail -1 "$OUT/$arm-r$r.log"
   done
 done
-echo "=== all agents done ==="
+echo "=== all agents done: $MODEL ==="
