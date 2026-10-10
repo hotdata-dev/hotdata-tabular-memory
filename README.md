@@ -17,10 +17,8 @@ scale was repeat work (a quarter of all queries, rising with every agent added),
 re-orient (`SELECT * LIMIT 2` ran 102 times across 14 agents), and invent definitions
 (every correctness failure in 268 sessions was a filter the question never specified).
 
-This plugin keeps the first behaviour and removes the other three. Measured against a
-bare CLI on Claude Sonnet 5, two agents an arm, twenty sessions each:
-
-Measured against three alternatives on Claude Sonnet 5, two agents each, twenty
+This plugin keeps the first behaviour and removes the other three. Measured against
+three alternatives on Claude Sonnet 5, two agents each, twenty
 sessions, the same fifty questions twice. The baseline is Claude with **no Hotdata at
 all** — the parquet on disk and whatever the machine has, which turned out to be DuckDB.
 
