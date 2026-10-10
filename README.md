@@ -23,13 +23,13 @@ bare CLI on Claude Sonnet 5, two agents an arm, twenty sessions each:
 | | Bare CLI | Plugin |
 | :- | :- | :- |
 | Correct | 97.0% | 98.0% |
-| Queries run | 211 | 80 |
-| Redundant queries | 32% | 11% |
+| Queries run | 211 | 129 |
+| Redundant queries | 32% | 23% |
 | Turns per session | 7.2 | 4.0 |
 | Tokens per session | 191k | 102k |
 | Cost per correct answer | $0.061 | $0.045 |
 
-Same accuracy, 62% fewer queries, 26% cheaper per correct answer.
+Same accuracy, 39% fewer queries, 26% cheaper per correct answer.
 
 ## What it does
 
