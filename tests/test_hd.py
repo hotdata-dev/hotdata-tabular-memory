@@ -227,6 +227,10 @@ def test_define_creates_then_versions(env, monkeypatch):
     ("SELECT a, b FROM t WHERE a > 1 LIMIT 100", "projection"),
     ("SELECT * FROM t", "unbounded"),
     ("SELECT a, b FROM t WHERE a > 1", "unbounded"),
+    ("INSERT INTO t (a, b) VALUES (1, 'x'), (2, 'y')", "write"),
+    ("insert into t select * from s", "write"),
+    ("-- labels from w3\nINSERT INTO t VALUES (1)", "write"),
+    ("SELECT * FROM inserts", "unbounded"),
 ])
 def test_a_query_is_classified_by_what_it_would_bring_back(sql, kind):
     assert discipline.classify(sql) == kind
