@@ -87,6 +87,15 @@ def quote(value: str) -> str:
 # ----------------------------------------------------------------------- queries
 
 
+HOUSEKEEPING = "/* hd:internal */ "
+
+
+def internal(sql: str) -> str:
+    """Mark a query the plugin runs for its own purposes, so it never shows up as a
+    result worth reusing. The comment survives into the run record's sql_text."""
+    return sql if sql.startswith(HOUSEKEEPING) else HOUSEKEEPING + sql
+
+
 def query(sql: str, database: str) -> dict:
     """Run `sql` against `database` and return the result as the CLI reports it.
 
@@ -187,15 +196,15 @@ def load_result(database: str, table: str, result_id: str) -> None:
 
 def tables(database: str, catalog: str) -> list[dict]:
     """Return `[{name, rows}]` for the database's own tables."""
-    names = rows(
+    names = rows(internal(
         f"SELECT table_name FROM information_schema.tables "
         f"WHERE table_catalog = {quote(catalog)} AND table_schema = 'public' "
-        f"ORDER BY table_name", database)
+        f"ORDER BY table_name"), database)
     out = []
     for row in names:
         name = row["table_name"]
         try:
-            count = rows(f"SELECT count(*) AS n FROM {catalog}.public.{name}", database)
+            count = rows(internal(f"SELECT count(*) AS n FROM {catalog}.public.{name}"), database)
             out.append({"name": name, "rows": int(count[0]["n"]) if count else 0})
         except HotdataError:
             out.append({"name": name, "rows": None})
@@ -204,15 +213,15 @@ def tables(database: str, catalog: str) -> list[dict]:
 
 def columns(database: str, catalog: str, table: str) -> list[dict]:
     """Return `[{name, type}]` for `table`, in declared order."""
-    found = rows(
+    found = rows(internal(
         f"SELECT column_name, data_type FROM information_schema.columns "
         f"WHERE table_catalog = {quote(catalog)} AND table_name = {quote(table)} "
-        f"ORDER BY ordinal_position", database)
+        f"ORDER BY ordinal_position"), database)
     return [{"name": r["column_name"], "type": r["data_type"]} for r in found]
 
 
 def sample(database: str, catalog: str, table: str, n: int = 3) -> list[dict]:
-    return rows(f"SELECT * FROM {catalog}.public.{table} LIMIT {int(n)}", database)
+    return rows(internal(f"SELECT * FROM {catalog}.public.{table} LIMIT {int(n)}"), database)
 
 
 def remove_table(database: str, table: str) -> None:
@@ -221,10 +230,10 @@ def remove_table(database: str, table: str) -> None:
 
 def table_names(database: str, catalog: str) -> list[str]:
     """Return the database's own table names, one cheap query."""
-    found = rows(
+    found = rows(internal(
         f"SELECT table_name FROM information_schema.tables "
         f"WHERE table_catalog = {quote(catalog)} AND table_schema = 'public' "
-        f"ORDER BY table_name", database)
+        f"ORDER BY table_name"), database)
     return [r["table_name"] for r in found]
 
 
@@ -234,7 +243,7 @@ def ranges(database: str, catalog: str, table: str, cols: list[dict]) -> dict[st
     if not timed:
         return {}
     parts = ", ".join(f'min("{c}") AS "lo_{i}", max("{c}") AS "hi_{i}"' for i, c in enumerate(timed))
-    found = rows(f"SELECT {parts} FROM {catalog}.public.{table}", database)
+    found = rows(internal(f"SELECT {parts} FROM {catalog}.public.{table}"), database)
     if not found:
         return {}
     row = found[0]

@@ -82,8 +82,7 @@ def arm_settings(arm: str, home: Path) -> dict:
     base = {
         "permissions": {
             "allow": ["Bash(hotdata query:*)", "Bash(hotdata databases:*)",
-                      "Bash(hd query:*)", "Bash(hd defs)", "Bash(hd status)",
-                      "Bash(hd orient:*)", "Bash(hd define:*)", "Bash(hd share:*)",
+                      "Bash(hd:*)",
                       "Bash(memory recall:*)", "Bash(memory profile:*)",
                       "Bash(memory list:*)", "Bash(memory remember:*)",
                       "Bash(memory status)"],

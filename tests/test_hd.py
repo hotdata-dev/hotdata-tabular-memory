@@ -49,7 +49,9 @@ elif a[:3] == ["databases", "queries", "list"]:
          {"id": "qrun3", "sql_text": "SELECT count(*) FROM taxi.public.trips WHERE fare_amount > 0",
           "sql_hash": "h1", "result_id": "rsltOLD", "row_count": 1, "snapshot_id": 6, "status": "succeeded"},
          {"id": "qrun4", "sql_text": "SELECT avg(x) FROM t", "sql_hash": "h3", "result_id": "rsltC",
-          "row_count": 1, "snapshot_id": 7, "status": "failed", "error_message": "boom"}])
+          "row_count": 1, "snapshot_id": 7, "status": "failed", "error_message": "boom"},
+         {"id": "qrun5", "sql_text": "/* hd:internal */ SELECT count(*) AS n FROM taxi.public.trips",
+          "sql_hash": "h4", "result_id": "rsltHK", "row_count": 1, "snapshot_id": 7, "status": "succeeded"}])
 elif a[:2] == ["workspaces", "list"]:
     out([{"public_id": "workfake", "name": "W"}])
 elif a[0] == "query":
@@ -466,6 +468,7 @@ def test_orientation_lists_recent_results_labelled_by_snapshot(env):
     assert "rsltOLD" not in text       # the same query again, older: deduplicated by hash
     assert "rsltB" not in text         # a LIMIT 2 peek is not worth reusing
     assert "rsltC" not in text         # failed
+    assert "rsltHK" not in text        # the plugin's own housekeeping, not an answer
 
 
 def test_orientation_shows_time_ranges(env):
@@ -529,3 +532,11 @@ def test_share_can_materialise_a_stored_result_by_id(env):
     assert out.returncode == 0, out.stderr
     assert any("tables load again --database" in c and "--result-id rsltA" in c for c in calls(env))
     assert not any(c.startswith("query") and "rsltA" in c for c in calls(env))
+
+
+def test_the_plugins_own_reads_are_marked_so_they_never_look_like_answers(env):
+    project.project_database(create=True)
+    hook("session_start", {"cwd": str(env / "my-repo")})
+    own = [c for c in calls(env) if c.startswith("query") and "hd:internal" in c]
+    other = [c for c in calls(env) if c.startswith("query") and "hd:internal" not in c]
+    assert own and not other

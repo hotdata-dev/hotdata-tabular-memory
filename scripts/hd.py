@@ -213,8 +213,8 @@ def cmd_share(args) -> int:
         total = result.get("total_row_count")
     hotdata.load_result(e["database"], args.table, rid)
     if total is None:
-        total = hotdata.rows(f"SELECT count(*) AS n FROM {e['catalog']}.public.{args.table}",
-                             e["database"])[0]["n"]
+        total = hotdata.rows(hotdata.internal(
+            f"SELECT count(*) AS n FROM {e['catalog']}.public.{args.table}"), e["database"])[0]["n"]
     print(f"{e['catalog']}.public.{args.table}: {total:,} rows, on the server. "
           f"Query it like any table.")
     orient.refresh(e, orient.budget())

@@ -34,7 +34,7 @@ def recent_results(database: str) -> list[str]:
         status = str(r.get("status") or "").lower()
         if (any(w in status for w in ("fail", "error", "cancel")) or r.get("error_message")
                 or not sql or not r.get("result_id") or ORIENTISH.search(sql)
-                or r.get("sql_hash") in seen):
+                or "hd:internal" in sql or r.get("sql_hash") in seen):
             continue
         seen.add(r.get("sql_hash"))
         lines.append(f"  {r['result_id']}  ({r.get('row_count', '?')} rows)  {sql[:88]}")
