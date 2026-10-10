@@ -15,7 +15,8 @@ TAG = os.environ.get("TAG", "")
 
 
 def main() -> None:
-    sources = [(HERE / "runs", ""), (HERE / "runs-v6", "_fixed"), (HERE / "runs-v21", "_v21")]
+    sources = [(HERE / "runs", ""), (HERE / "runs-v6", "_fixed"), (HERE / "runs-v21", "_v21"),
+               (HERE / "runs-local", "")]
     arms: dict[str, list] = defaultdict(list)
     answers: dict[str, list] = defaultdict(list)
     agents = [(p, suffix, runs) for runs, suffix in sources if runs.is_dir()
@@ -114,6 +115,7 @@ def main() -> None:
             },
             "stability": stability(graded),
             "swarm": redundancy.swarm_metrics(runs_of[arm], arm.split("_")[0]),
+            "tools": redundancy.tool_use(runs_of[arm], arm.split("_")[0]),
             "invented_filter_errors": redundancy.invented_filter_errors(graded),
             "per_agent": sorted(
                 [

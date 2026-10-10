@@ -128,3 +128,21 @@ def invented_filter_errors(answers: list[dict]) -> int:
         if truth and abs(given - truth) / abs(truth) < 0.05:
             count += 1
     return count
+
+
+def tool_use(runs: Path, arm: str) -> dict:
+    """How the arm worked: tool calls by name, and the data files it opened."""
+    import collections
+    tools = collections.Counter()
+    for path in transcripts(runs, arm):
+        for line in open(path):
+            try:
+                d = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if d.get("type") != "assistant":
+                continue
+            for c in d.get("message", {}).get("content", []):
+                if c.get("type") == "tool_use":
+                    tools[c["name"]] += 1
+    return dict(tools)

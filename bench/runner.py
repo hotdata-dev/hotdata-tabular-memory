@@ -55,6 +55,28 @@ Questions:
 """
 
 
+DATA_DIR = "/private/tmp/claude-501/-Users-eddie-Code-claude-hotdata-plugin/6bc8e054-526c-4223-8763-8182b4f473d2/scratchpad/bench"
+
+LOCAL_BRIEF = """You are answering questions about New York yellow taxi trips for January 2024.
+
+The data is in two files:
+
+    {data}/yellow_2024-01.parquet   one row per trip
+    {data}/taxi_zone_lookup.csv     the LocationID lookup, with Borough and Zone
+
+Answer each question below. Work however you like, with whatever is on this machine.
+
+When you are done, print one final line and nothing after it:
+
+ANSWERS {{{{"q01": <value>, "q02": <value>, ...}}}}
+
+A value is a bare number (no dollar sign, no thousands separator) or a string, matching
+what the question asks for. Use the question ids exactly as given.
+
+Questions:
+{questions}
+"""
+
 PLUGIN_BRIEF = """You are answering questions about New York yellow taxi trips for January 2024.
 
 The project's data is in Hotdata and the `hd` command is on your PATH. Your session
@@ -89,7 +111,15 @@ def arm_settings(arm: str, home: Path) -> dict:
         },
         "autoMemoryDirectory": str(home / "memory"),
     }
-    if arm in ("bare", "plugin"):
+    if arm == "local":
+        # Claude as it would be if Hotdata did not exist: the files are on disk, every
+        # tool on the machine is fair game, and the CLI is denied so a stray mention in
+        # the skill listing cannot turn into a call.
+        base["permissions"] = {"allow": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
+                               "deny": ["Bash(hotdata:*)", "Bash(hd:*)"]}
+        base["autoMemoryEnabled"] = False
+        base["enabledPlugins"] = {"hotdata-memory@hotdata": False, "hotdata@hotdata": False}
+    elif arm in ("bare", "plugin"):
         base["autoMemoryEnabled"] = False
         base["enabledPlugins"] = {"hotdata-memory@hotdata": False, "hotdata@hotdata": False}
     elif arm == "markdown":
@@ -166,7 +196,7 @@ def grade(question: dict, given) -> bool:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--arm", required=True,
-                        choices=["bare", "plugin", "none", "markdown", "hotdata"])
+                        choices=["local", "bare", "plugin", "none", "markdown", "hotdata"])
     parser.add_argument("--replicate", type=int, required=True)
     parser.add_argument("--out", type=Path, default=HERE / "runs")
     parser.add_argument("--sessions", type=int, default=20)
@@ -199,7 +229,8 @@ def main() -> int:
     # and `autoMemoryEnabled` cannot turn it back on there. Only "0" forces it on, so
     # every arm states what it wants rather than inheriting it.
     env["CLAUDE_CODE_DISABLE_AUTO_MEMORY"] = "0" if args.arm == "markdown" else "1"
-    env["PATH"] = f"{PLUGIN_DIR}/bin:" + env.get("PATH", "")
+    if args.arm != "local":
+        env["PATH"] = f"{PLUGIN_DIR}/bin:" + env.get("PATH", "")
     # One plugin data dir per run, shared by every agent in it: a definition one agent
     # makes reaches the next one's orientation, which is the behaviour under test.
     env["CLAUDE_PLUGIN_DATA"] = str(args.out.resolve() / "plugin-data")
@@ -216,8 +247,8 @@ def main() -> int:
         if not batch:
             break
         listing = "\n".join(f"{q['id']}. {q['ask']}" for q in batch)
-        brief = PLUGIN_BRIEF if args.arm == "plugin" else BRIEF
-        prompt = brief.format(db=DB, questions=listing)
+        brief = {"plugin": PLUGIN_BRIEF, "local": LOCAL_BRIEF}.get(args.arm, BRIEF)
+        prompt = brief.format(db=DB, data=DATA_DIR, questions=listing)
         started = time.time()
         proc = subprocess.run(
             ["claude", "-p", prompt, "--output-format", "json",
