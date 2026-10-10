@@ -101,7 +101,7 @@ The engine is Apache DataFusion. No `date_diff()` or `hour()` — `EXTRACT(EPOCH
 ## Develop
 
 ```sh
-./test.sh          # 40 tests against a fake `hotdata`, offline
+./test.sh          # 43 tests against a fake `hotdata`, offline
 ./test.sh -k guard
 ```
 

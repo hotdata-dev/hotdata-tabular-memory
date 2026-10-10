@@ -15,16 +15,18 @@ TAG = os.environ.get("TAG", "")
 
 
 def main() -> None:
-    runs = HERE / "runs"
+    sources = [(HERE / "runs", ""), (HERE / "runs-v6", "_fixed")]
     arms: dict[str, list] = defaultdict(list)
     answers: dict[str, list] = defaultdict(list)
-    for agent in sorted(p for p in runs.iterdir() if p.is_dir()):
-        arm = agent.name.rsplit("-r", 1)[0]
+    agents = [(p, suffix) for runs, suffix in sources if runs.is_dir()
+              for p in sorted(runs.iterdir()) if p.is_dir()]
+    for agent, suffix in agents:
+        arm = agent.name.rsplit("-r", 1)[0] + suffix
         for path in sorted(agent.glob("s*.json")):
             row = json.loads(path.read_text())
             usage = row.get("usage") or {}
             arms[arm].append({
-                "agent": agent.name,
+                "agent": agent.name + suffix,
                 "session": row.get("session_index"),
                 "pass": row.get("pass", 1),
                 "cost": row.get("total_cost_usd", 0.0),
@@ -40,7 +42,37 @@ def main() -> None:
         path = agent / "answers.jsonl"
         if path.exists():
             for line in path.read_text().splitlines():
-                answers[arm].append(json.loads(line))
+                row = json.loads(line)
+                row["agent"] = agent.name + suffix
+                answers[arm].append(row)
+
+    def stability(graded):
+        """Count what happened to each question between pass 1 and pass 2.
+
+        A question answered right in pass 1 and wrong in pass 2 is memory doing harm;
+        the same wrong answer twice is an error that memory preserved.
+        """
+        seen = defaultdict(dict)
+        for a in graded:
+            seen[(a["agent"], a["id"])][a.get("pass", 1)] = a
+        out = {"right_both": 0, "wrong_both_same": 0, "wrong_both_diff": 0,
+               "right_to_wrong": 0, "wrong_to_right": 0, "pairs": 0}
+        for v in seen.values():
+            if len(v) != 2:
+                continue
+            out["pairs"] += 1
+            one, two = v[1], v[2]
+            if one["correct"] and two["correct"]:
+                out["right_both"] += 1
+            elif one["correct"]:
+                out["right_to_wrong"] += 1
+            elif two["correct"]:
+                out["wrong_to_right"] += 1
+            elif str(one["given"]) == str(two["given"]):
+                out["wrong_both_same"] += 1
+            else:
+                out["wrong_both_diff"] += 1
+        return out
 
     report = {}
     for arm, rows in arms.items():
@@ -78,6 +110,24 @@ def main() -> None:
             "turns_by_pass": {
                 str(k): sum(v) for k, v in sorted(pass_turns.items())
             },
+            "stability": stability(graded),
+            "swarm": redundancy.swarm_metrics(HERE / "runs", arm.replace("_fixed", "")),
+            "invented_filter_errors": redundancy.invented_filter_errors(graded),
+            "per_agent": sorted(
+                [
+                    {
+                        "agent": name,
+                        "accuracy": round(
+                            sum(a["correct"] for a in graded if a["agent"] == name)
+                            / max(sum(1 for a in graded if a["agent"] == name), 1), 4),
+                        "cost": round(
+                            sum(r["cost"] for r in rows if r["agent"] == name), 4),
+                        "turns": sum(r["turns"] for r in rows if r["agent"] == name),
+                    }
+                    for name in sorted({r["agent"] for r in rows})
+                ],
+                key=lambda d: d["agent"],
+            ),
             "cost_total": round(sum(costs), 4),
             "cost_per_session_mean": round(statistics.mean(costs), 4) if costs else 0,
             "cost_per_correct": round(

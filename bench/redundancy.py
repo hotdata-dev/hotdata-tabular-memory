@@ -23,11 +23,16 @@ def norm(sql: str) -> str:
     return re.sub(r"\s+", " ", sql.strip().lower()).rstrip(";")
 
 
-def transcripts(tag: str, arm: str) -> list[Path]:
-    """Transcript files for every agent of `arm` in the run tagged `tag`."""
+def transcripts(runs: Path, arm: str) -> list[Path]:
+    """Transcript files for every agent of `arm` under `runs`.
+
+    Claude Code names a project's folder from its working directory, with every `/`
+    turned into `-`, so the agent's work dir is the key.
+    """
     found = []
-    for folder in PROJECTS.glob(f"*{tag}-{arm}-r*"):
-        found.extend(folder.glob("*.jsonl"))
+    for agent in sorted(runs.glob(f"{arm}-r*")):
+        name = str((agent / "work").resolve()).replace("/", "-")
+        found.extend((PROJECTS / name).glob("*.jsonl"))
     return found
 
 
@@ -48,9 +53,9 @@ def queries_of(path: Path) -> list[str]:
     return out
 
 
-def swarm_metrics(tag: str, arm: str) -> dict:
+def swarm_metrics(runs: Path, arm: str) -> dict:
     all_q, per_agent = [], defaultdict(list)
-    for path in transcripts(tag, arm):
+    for path in transcripts(runs, arm):
         agent = path.parent.name
         qs = queries_of(path)
         per_agent[agent].extend(qs)
