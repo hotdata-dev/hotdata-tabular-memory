@@ -41,6 +41,15 @@ elif a[:3] == ["databases", "tables", "load"]:
     pass
 elif a[:2] == ["databases", "attach"]:
     pass
+elif a[:3] == ["databases", "queries", "list"]:
+    out([{"id": "qrun1", "sql_text": "SELECT count(*) FROM taxi.public.trips WHERE fare_amount > 0",
+          "sql_hash": "h1", "result_id": "rsltA", "row_count": 1, "snapshot_id": 7, "status": "succeeded"},
+         {"id": "qrun2", "sql_text": "SELECT * FROM taxi.public.trips LIMIT 2",
+          "sql_hash": "h2", "result_id": "rsltB", "row_count": 2, "snapshot_id": 7, "status": "succeeded"},
+         {"id": "qrun3", "sql_text": "SELECT count(*) FROM taxi.public.trips WHERE fare_amount > 0",
+          "sql_hash": "h1", "result_id": "rsltOLD", "row_count": 1, "snapshot_id": 6, "status": "succeeded"},
+         {"id": "qrun4", "sql_text": "SELECT avg(x) FROM t", "sql_hash": "h3", "result_id": "rsltC",
+          "row_count": 1, "snapshot_id": 7, "status": "failed", "error_message": "boom"}])
 elif a[:2] == ["workspaces", "list"]:
     out([{"public_id": "workfake", "name": "W"}])
 elif a[0] == "query":
@@ -51,7 +60,13 @@ elif a[0] == "query":
         out({"columns": ["table_name"], "rows": [["trips"]], "total_row_count": 1})
     elif "information_schema.columns" in sql:
         out({"columns": ["column_name", "data_type"],
-             "rows": [["fare_amount", "Float64"], ["PULocationID", "Int32"]], "total_row_count": 2})
+             "rows": [["fare_amount", "Float64"], ["PULocationID", "Int32"],
+                      ["tpep_pickup_datetime", "Timestamp(Microsecond, None)"]], "total_row_count": 3})
+    elif "min(" in sql and "max(" in sql:
+        out({"columns": ["lo_0", "hi_0"], "rows": [["2024-01-01T00:00:00", "2024-02-03T12:00:00"]],
+             "total_row_count": 1})
+    elif "nope" in sql:
+        print("error: table 'taxi.public.nope' not found", file=sys.stderr); sys.exit(1)
     elif "count(*)" in sql:
         out({"columns": ["n"], "rows": [[2869585]], "result_id": "rslt1", "total_row_count": 1})
     elif "limit 2" in sql or "limit 3" in sql:
@@ -403,3 +418,79 @@ def test_a_cte_counts_as_a_select(env, monkeypatch):
     monkeypatch.setattr(api, "find", lambda n: None)
     monkeypatch.setattr(api, "create", lambda n, s, d="": {"id": "x", "latest_version": 1, "sql_hash": "h"})
     assert defs.define("my_repo", "recent", "WITH r AS (SELECT 1) SELECT * FROM r")["new"]
+
+
+# ------------------------------------------------------------------------ batch
+
+
+def test_batch_runs_every_query_and_labels_each_result(env):
+    project.project_database(create=True)
+    out = hd(["batch", "rows: SELECT count(*) FROM t", "top: SELECT a, b FROM t LIMIT 3"], env)
+    assert out.returncode == 0, out.stderr
+    assert "== rows ==" in out.stdout and "2869585" in out.stdout
+    assert "== top ==" in out.stdout
+    assert len([c for c in calls(env) if c.startswith("query")]) >= 2
+
+
+def test_batch_reads_a_script_from_stdin_with_name_comments(env):
+    project.project_database(create=True)
+    script = "-- total\nSELECT count(*) FROM t;\n-- sample\nSELECT a, b\nFROM t LIMIT 3;\n"
+    out = subprocess.run([sys.executable, str(SCRIPTS / "hd.py"), "batch"], input=script,
+                         capture_output=True, text=True,
+                         env={**os.environ, "PYTHONPATH": str(SCRIPTS)})
+    assert out.returncode == 0, out.stderr
+    assert "== total ==" in out.stdout and "== sample ==" in out.stdout
+
+
+def test_batch_keeps_going_past_a_refused_query(env):
+    project.project_database(create=True)
+    out = hd(["batch", "bad: SELECT * FROM t", "good: SELECT count(*) FROM t"], env)
+    assert out.returncode == 2
+    assert "== bad ==" in out.stdout and "refused" in out.stdout
+    assert "== good ==" in out.stdout and "2869585" in out.stdout
+
+
+def test_batch_labels_unlabelled_queries_by_position(env):
+    assert [l for l, _ in __import__("hd").split_batch(["SELECT 1", "x: SELECT 2"], "")] == ["q1", "x"]
+
+
+# ------------------------------------------------------------- orientation extras
+
+
+def test_orientation_lists_recent_results_at_the_current_snapshot_only(env):
+    project.project_database(create=True)
+    seed_defs(env)
+    text = hook("session_start", {"cwd": str(env / "my-repo")})["hookSpecificOutput"]["additionalContext"]
+    assert "current snapshot (7)" in text
+    assert "rsltA" in text          # succeeded, newest snapshot
+    assert "rsltOLD" not in text    # same query at an older snapshot
+    assert "rsltB" not in text      # a LIMIT 2 peek is not worth reusing
+    assert "rsltC" not in text      # failed
+
+
+def test_orientation_shows_time_ranges(env):
+    project.project_database(create=True)
+    seed_defs(env)
+    text = hook("session_start", {"cwd": str(env / "my-repo")})["hookSpecificOutput"]["additionalContext"]
+    assert "tpep_pickup_datetime: 2024-01-01T00:00:00 to 2024-02-03T12:00:00" in text
+
+
+# -------------------------------------------------------------------- url + names
+
+
+def test_load_hands_a_url_to_the_server(env):
+    out = hd(["load", "https://example.com/data/trips.parquet?x=1"], env)
+    assert out.returncode == 0, out.stderr
+    assert "fetched by the server" in out.stdout
+    sent = [c for c in calls(env) if "tables load trips" in c][0]
+    assert "--url https://example.com/data/trips.parquet?x=1" in sent and "--format parquet" in sent
+
+
+def test_a_missing_table_error_names_what_exists(env):
+    project.project_database(create=True)
+    seed_defs(env, clean_set="SELECT 1")
+    out = hd(["query", "SELECT count(*) FROM nope"], env)
+    assert out.returncode == 1
+    assert "not found" in out.stderr
+    assert "tables here: my_repo.public.trips" in out.stderr
+    assert "{{clean_set}}" in out.stderr

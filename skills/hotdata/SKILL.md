@@ -16,10 +16,35 @@ The `hd` command is on your PATH while this plugin is enabled.
 ```sh
 hd load data/trips.parquet            # creates the project database on first use
 hd load data/zones.csv --table zones  # name the table; default is the file's stem
+hd load https://example.com/trips.parquet   # the server fetches it; nothing passes through here
 ```
 
-Takes a few seconds for 50MB and prints the schema, row count, a sample and the
-dialect notes. After that, do not read the file. Query it.
+Takes a few seconds for 50MB and prints the schema, row count, time ranges, a sample,
+the definitions, and results already computed. After that, do not read the file. Query it.
+If a file is remote, give the URL rather than downloading it first.
+
+## Ask several questions at once
+
+Every call costs a turn, and a turn re-sends everything you know. When you have more
+than one question, ask them together:
+
+```sh
+hd batch "q11: SELECT count(*) FROM {{clean_set}} WHERE \"PULocationID\" = 132 AND \"DOLocationID\" = 230" \
+         "q12: SELECT round(avg(total_amount), 2) FROM {{clean_set}} WHERE \"PULocationID\" = 132 AND \"DOLocationID\" = 230"
+```
+
+Or a script on stdin, one statement per `;`, with `-- name` lines as labels:
+
+```sh
+hd batch <<'SQL'
+-- rows
+SELECT count(*) FROM {{clean_set}};
+-- top_pickup
+SELECT z."Zone", count(*) AS n FROM {{clean_set}} t JOIN taxi.public.zones z ON t."PULocationID" = z."LocationID" GROUP BY 1 ORDER BY n DESC LIMIT 1;
+SQL
+```
+
+Each result prints under its label. One failing query does not stop the rest.
 
 ## Ask a question
 

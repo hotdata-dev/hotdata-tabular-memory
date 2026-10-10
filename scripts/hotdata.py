@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 from collections.abc import Sequence
 from pathlib import Path
@@ -56,7 +57,6 @@ def run(args: Sequence[str], timeout: int = TIMEOUT) -> str:
 
 def _plain(text: str) -> str:
     """Strip the CLI's colour codes so an error reads as a sentence."""
-    import re
     return re.sub(r"\x1b\[[0-9;]*m", "", text).strip()
 
 
@@ -163,11 +163,17 @@ def workspaces() -> list[dict]:
 # ------------------------------------------------------------------------ tables
 
 
-def load_file(database: str, table: str, path: str, mode: str = "replace") -> None:
-    """Load a local file into `table`, creating the table if it is missing."""
-    fmt = FORMATS.get(Path(path).suffix.lower())
+def load_file(database: str, table: str, source: str, mode: str = "replace") -> None:
+    """Load a file into `table`, creating the table if it is missing.
+
+    A URL is handed to the server to fetch, so the bytes never pass through this
+    machine; a path is uploaded.
+    """
+    remote = source.startswith(("http://", "https://"))
+    name = source.split("?", 1)[0] if remote else source
+    fmt = FORMATS.get(Path(name).suffix.lower())
     args = ["databases", "tables", "load", table, "--database", database,
-            "--file", path, "--mode", mode]
+            "--url" if remote else "--file", source, "--mode", mode]
     if fmt:
         args += ["--format", fmt]
     run(args, timeout=900)
@@ -211,3 +217,45 @@ def sample(database: str, catalog: str, table: str, n: int = 3) -> list[dict]:
 
 def remove_table(database: str, table: str) -> None:
     run(["databases", "tables", "remove", table, "--database", database])
+
+
+def table_names(database: str, catalog: str) -> list[str]:
+    """Return the database's own table names, one cheap query."""
+    found = rows(
+        f"SELECT table_name FROM information_schema.tables "
+        f"WHERE table_catalog = {quote(catalog)} AND table_schema = 'public' "
+        f"ORDER BY table_name", database)
+    return [r["table_name"] for r in found]
+
+
+def ranges(database: str, catalog: str, table: str, cols: list[dict]) -> dict[str, tuple]:
+    """Return `{column: (min, max)}` for the table's timestamp and date columns."""
+    timed = [c["name"] for c in cols if re.search(r"timestamp|date", c["type"], re.I)]
+    if not timed:
+        return {}
+    parts = ", ".join(f'min("{c}") AS "lo_{i}", max("{c}") AS "hi_{i}"' for i, c in enumerate(timed))
+    found = rows(f"SELECT {parts} FROM {catalog}.public.{table}", database)
+    if not found:
+        return {}
+    row = found[0]
+    return {c: (row.get(f"lo_{i}"), row.get(f"hi_{i}")) for i, c in enumerate(timed)}
+
+
+def query_runs(database: str, limit: int = 40) -> list[dict]:
+    """Return recent query runs, newest first, as the CLI reports them.
+
+    Each carries `sql_text`, `sql_hash`, `result_id`, `row_count`, `snapshot_id`,
+    `status` and `error_message`.
+    """
+    text = run(["databases", "queries", "list", "-d", database, "--limit", str(limit),
+                "-o", "json"])
+    found = _objects(text)
+    if not found:
+        return []
+    head = found[0]
+    if isinstance(head, list):
+        return head
+    for key in ("runs", "queries", "items", "data"):
+        if isinstance(head.get(key), list):
+            return head[key]
+    return []

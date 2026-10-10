@@ -15,7 +15,7 @@ TAG = os.environ.get("TAG", "")
 
 
 def main() -> None:
-    sources = [(HERE / "runs", ""), (HERE / "runs-v6", "_fixed")]
+    sources = [(HERE / "runs", ""), (HERE / "runs-v6", "_fixed"), (HERE / "runs-v21", "_v21")]
     arms: dict[str, list] = defaultdict(list)
     answers: dict[str, list] = defaultdict(list)
     agents = [(p, suffix) for runs, suffix in sources if runs.is_dir()

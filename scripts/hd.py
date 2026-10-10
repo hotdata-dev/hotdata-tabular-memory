@@ -13,6 +13,7 @@ import argparse
 import csv
 import io
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -39,6 +40,41 @@ def row_cap() -> int:
         return 200
 
 
+NOT_FOUND = re.compile(r"not found|does not exist|no such|unknown (table|column)|cannot resolve", re.I)
+
+
+def with_names(error: HotdataError, e: dict) -> HotdataError:
+    """Append what exists to an error about something that does not, to save the retry."""
+    if not NOT_FOUND.search(str(error)):
+        return error
+    try:
+        tables = ", ".join(f"{e['catalog']}.public.{n}" for n in hotdata.table_names(e["database"], e["catalog"]))
+        names = ", ".join(f"{{{{{n}}}}}" for n in sorted(defs.all_definitions(e["project"]))) or "none"
+    except HotdataError:
+        return error
+    return HotdataError(f"{error}\n  tables here: {tables}\n  definitions: {names}")
+
+
+def run_one(e: dict, sql: str, cap: int, stream_all: bool) -> tuple[int, str]:
+    """Expand, check, run one query; return (exit code, text to print)."""
+    sql = defs.expand(sql, project_label=e["project"])
+    if not stream_all and discipline.classify(sql) == "unbounded":
+        return 2, discipline.refusal(sql, cap)
+    try:
+        if stream_all:
+            return 0, hotdata.stream_csv(sql, e["database"])
+        result = hotdata.query(sql, e["database"])
+    except HotdataError as error:
+        raise with_names(error, e) from None
+    total = int(result.get("total_row_count") or len(result.get("rows") or []))
+    rows, footer = discipline.trim(result.get("rows") or [], total, cap)
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(result.get("columns") or [])
+    writer.writerows(rows)
+    return 0, out.getvalue() + (footer + "\n" if footer else "")
+
+
 def print_csv(columns: list, rows: list) -> None:
     out = io.StringIO()
     writer = csv.writer(out)
@@ -51,37 +87,89 @@ def print_csv(columns: list, rows: list) -> None:
 
 
 def cmd_load(args) -> int:
-    path = Path(args.file).expanduser().resolve()
-    if not path.exists():
-        raise HotdataError(f"no such file: {path}")
-    table = args.table or project.label(path.stem)
+    remote = args.file.startswith(("http://", "https://"))
+    if remote:
+        source, shown = args.file, args.file.split("?", 1)[0].rsplit("/", 1)[-1]
+        stem = Path(shown).stem
+    else:
+        path = Path(args.file).expanduser().resolve()
+        if not path.exists():
+            raise HotdataError(f"no such file: {path}")
+        source, shown, stem = str(path), path.name, path.stem
+    table = args.table or project.label(stem)
     e = entry(create=True)
     started = time.time()
-    hotdata.load_file(e["database"], table, str(path), "replace" if args.replace else "append"
-                      if args.append else "replace")
+    hotdata.load_file(e["database"], table, source, "append" if args.append else "replace")
     took = time.time() - started
-    print(f"loaded {path.name} -> {e['catalog']}.public.{table} in {took:.1f}s\n")
+    how = "fetched by the server" if remote else "uploaded"
+    print(f"loaded {shown} -> {e['catalog']}.public.{table} in {took:.1f}s ({how})\n")
     print(orient.refresh(e, orient.budget()))
     return 0
 
 
 def cmd_query(args) -> int:
     e = entry()
-    sql = defs.expand(args.sql, project_label=e["project"])
+    code, text = run_one(e, args.sql, row_cap(), args.all)
+    print(text, end="", file=sys.stderr if code else sys.stdout)
+    return code
+
+
+# --- 1: several queries, one call, one turn
+LABEL = re.compile(r"^\s*([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(.+)$", re.S)
+NAME_COMMENT = re.compile(r"^\s*--\s*([A-Za-z_][A-Za-z0-9_]*)\s*$")
+
+
+def split_batch(args_sql: list[str], stdin_text: str) -> list[tuple[str, str]]:
+    """Return `[(label, sql)]` from positional `label: sql` args or a stdin script.
+
+    In a script, statements end at a `;` at the end of a line, and a `-- name` comment
+    line labels the statement that follows it. Unlabelled statements are numbered.
+    """
+    items: list[tuple[str, str]] = []
+    for i, raw in enumerate(args_sql, 1):
+        m = LABEL.match(raw)
+        items.append((m.group(1), m.group(2)) if m else (f"q{i}", raw))
+    if stdin_text.strip():
+        label, buf = "", []
+        for line in stdin_text.splitlines():
+            m = NAME_COMMENT.match(line)
+            if m:
+                label = m.group(1)
+                continue
+            buf.append(line)
+            if line.rstrip().endswith(";"):
+                sql = "\n".join(buf).strip().rstrip(";").strip()
+                if sql:
+                    items.append((label or f"q{len(items) + 1}", sql))
+                label, buf = "", []
+        tail = "\n".join(buf).strip().rstrip(";").strip()
+        if tail:
+            items.append((label or f"q{len(items) + 1}", tail))
+    return items
+
+
+def cmd_batch(args) -> int:
+    """Run every query and print every result, so several questions cost one turn.
+
+    A failure in one query does not stop the others: each result or error is printed
+    under its label, and the exit code is the worst of them.
+    """
+    e = entry()
+    stdin_text = "" if sys.stdin.isatty() else sys.stdin.read()
+    items = split_batch(args.sql, stdin_text)
+    if not items:
+        raise HotdataError("nothing to run: pass 'label: SELECT ...' arguments or a script on stdin")
+    worst = 0
     cap = row_cap()
-    if not args.all and discipline.classify(sql) == "unbounded":
-        print(discipline.refusal(sql, cap), file=sys.stderr)
-        return 2
-    if args.all:
-        sys.stdout.write(hotdata.stream_csv(sql, e["database"]))
-        return 0
-    result = hotdata.query(sql, e["database"])
-    total = int(result.get("total_row_count") or len(result.get("rows") or []))
-    rows, footer = discipline.trim(result.get("rows") or [], total, cap)
-    print_csv(result.get("columns") or [], rows)
-    if footer:
-        print(footer)
-    return 0
+    for label, sql in items:
+        print(f"== {label} ==")
+        try:
+            code, text = run_one(e, sql, cap, False)
+        except HotdataError as error:
+            code, text = 1, f"error: {error}\n"
+        sys.stdout.write(text if text.endswith("\n") else text + "\n")
+        worst = max(worst, code)
+    return worst
 
 
 def cmd_define(args) -> int:
@@ -108,7 +196,10 @@ def cmd_defs(args) -> int:
 def cmd_share(args) -> int:
     e = entry()
     sql = defs.expand(args.sql, project_label=e["project"])
-    result = hotdata.query(sql, e["database"])
+    try:
+        result = hotdata.query(sql, e["database"])
+    except HotdataError as error:
+        raise with_names(error, e) from None
     rid = result.get("result_id")
     if not rid:
         raise HotdataError("the query returned no result id to materialise")
@@ -174,8 +265,9 @@ def main(argv: list[str] | None = None) -> int:
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="command", required=True)
 
-    s = sub.add_parser("load", help="load a file into the project database")
-    s.add_argument("file"); s.add_argument("--table")
+    s = sub.add_parser("load", help="load a file or URL into the project database")
+    s.add_argument("file", help="a local path, or an http(s) URL the server fetches")
+    s.add_argument("--table")
     s.add_argument("--append", action="store_true"); s.add_argument("--replace", action="store_true")
     s.set_defaults(run=cmd_load)
 
@@ -183,6 +275,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("sql"); s.add_argument("--all", action="store_true",
                                           help="stream every row as CSV, uncapped")
     s.set_defaults(run=cmd_query)
+
+    s = sub.add_parser("batch", help="run several queries in one call: 'label: SELECT ...' args, or a script on stdin")
+    s.add_argument("sql", nargs="*"); s.set_defaults(run=cmd_batch)
 
     s = sub.add_parser("define", help="name a filter or derived set for every agent")
     s.add_argument("name"); s.add_argument("sql"); s.add_argument("--description", default="")

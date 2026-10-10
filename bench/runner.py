@@ -59,7 +59,8 @@ PLUGIN_BRIEF = """You are answering questions about New York yellow taxi trips f
 
 The project's data is in Hotdata and the `hd` command is on your PATH. Your session
 started with the database, its tables, a sample, any definitions and the SQL dialect.
-Use `hd query "<sql>"`. In SQL, {{{{name}}}} expands to a definition; `hd defs` lists them.
+Use `hd query "<sql>"`, or `hd batch "label: <sql>" "label: <sql>" ...` to ask several
+questions in one call. In SQL, {{{{name}}}} expands to a definition; `hd defs` lists them.
 If a question names a set (such as "the clean set") and no definition exists, define it
 from the question's own words with `hd define` before answering, so later questions use
 the same one.
