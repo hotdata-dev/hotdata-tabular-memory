@@ -18,9 +18,9 @@ re-orient (`SELECT * LIMIT 2` ran 102 times across 14 agents), and invent defini
 (every correctness failure in 268 sessions was a filter the question never specified).
 
 This plugin keeps the first behaviour and removes the other three. Measured against
-three alternatives on Claude Sonnet 5, two agents each, twenty
-sessions, the same fifty questions twice. The baseline is Claude with **no Hotdata at
-all** — the parquet on disk and whatever the machine has, which turned out to be DuckDB.
+three alternatives on Claude Opus 5, two agents each, twenty sessions, the same fifty
+questions twice. The baseline is Claude with **no Hotdata at all** — the parquet on disk
+and whatever the machine has, which turned out to be DuckDB.
 
 | | No Hotdata | Hotdata CLI | Plugin v2.0 | Plugin v2.1 |
 | :- | :- | :- | :- | :- |
