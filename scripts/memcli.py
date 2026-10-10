@@ -16,6 +16,11 @@ from hotmemory.contract import RECALLED_KINDS, fit_lines, render_line
 
 
 def scope_of(args) -> tuple[str, ...]:
+    """Return the scope to read or write.
+
+    With no `--scope`, this resolves the same way the hooks do, so a command run from
+    a subdirectory, or from /tmp, still reaches the project's own memory.
+    """
     if args.scope:
         return tuple(bridge.label(part) for part in args.scope.split("/"))
     return bridge.scope_for(os.getcwd())

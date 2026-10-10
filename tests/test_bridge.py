@@ -229,3 +229,34 @@ def test_standalone_keeps_the_instructions_beside_the_records(env, monkeypatch):
 
 def test_mirror_mode_says_nothing_when_memory_is_empty(env):
     assert hook("session_start", {"cwd": "/x/a-project"}) == {}
+
+
+# ---------------------------------------------------------- scope does not follow cwd
+
+
+def test_a_repository_names_the_project_from_any_subdirectory(env, tmp_path):
+    repo = tmp_path / "my-repo"
+    (repo / ".git").mkdir(parents=True)
+    deep = repo / "services" / "api"
+    deep.mkdir(parents=True)
+    assert bridge.scope_for(str(repo)) == ("claude", "my-repo")
+    assert bridge.scope_for(str(deep)) == ("claude", "my-repo")
+
+
+def test_the_project_option_wins_over_the_directory(env, monkeypatch):
+    monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_PROJECT", "pinned")
+    assert bridge.scope_for("/anywhere/at/all") == ("claude", "pinned")
+
+
+def test_outside_a_repository_the_directory_still_names_it(env, tmp_path):
+    plain = tmp_path / "loose-dir"
+    plain.mkdir()
+    assert bridge.scope_for(str(plain)) == ("claude", "loose-dir")
+
+
+def test_standalone_warns_against_recording_a_computed_figure(env, monkeypatch):
+    monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_MODE", "standalone")
+    context = hook("session_start", {"cwd": "/x/a-project"})["hookSpecificOutput"]["additionalContext"]
+    assert "Record how to get an answer, not the answer" in context
+    assert "canonical" in context
+    assert "the data is right" in context

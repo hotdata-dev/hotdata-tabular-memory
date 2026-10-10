@@ -133,10 +133,32 @@ def label(text: str) -> str:
     return cleaned or "default"
 
 
+def project_label(cwd: str) -> str:
+    """Return the project label for `cwd`, which must not move when the shell does.
+
+    The `project` option wins. Otherwise the repository root names the project, the
+    way Claude Code's own memory directory does, so every subdirectory of one
+    repository shares one memory. Only outside a repository does the directory name
+    decide, and then it is the session's directory, never one the agent cd'd into.
+    """
+    chosen = option("project") or os.environ.get("HOTDATA_MEMORY_PROJECT", "")
+    if chosen:
+        return label(chosen)
+    start = Path(cwd).expanduser() if cwd else Path.cwd()
+    try:
+        start = start.resolve()
+    except OSError:
+        return label(start.name)
+    for folder in (start, *start.parents):
+        if (folder / ".git").exists():
+            return label(folder.name)
+    return label(start.name)
+
+
 def scope_for(cwd: str) -> tuple[str, ...]:
     """Return the namespace for the project at `cwd`."""
     prefix = label(option("scope_prefix", "claude"))
-    return (prefix, label(Path(cwd).name if cwd else "default"))
+    return (prefix, project_label(cwd))
 
 
 def budget() -> int:

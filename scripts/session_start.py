@@ -28,9 +28,18 @@ keeping must be written to it before this session ends, or it is lost:
 
 Use `fact` for something about the project, `profile` for something about the person, and
 `procedure` for how to work. Run `memory recall "<question>"` to search for more than what
-loaded above. Record what you could not derive again cheaply: a schema quirk you had to
-discover, a decision and its reason, a correction the person gave you. Writing the same
-content twice writes nothing, so a repeat is safe."""
+loaded above.
+
+Record how to get an answer, not the answer. A schema detail, a dialect quirk, a
+definition you were given, a command that worked: these stay true and save the next
+session real work. A figure you computed does not belong here — it was true of one query
+on one day, and a wrong one recorded as fact is worse than no memory, because every later
+answer inherits it.
+
+Two rules follow from that. Never label your own conclusion canonical, settled or
+verified. And when a record disagrees with the data, the data is right: re-run the query
+and correct the record with `memory forget` and a fresh `memory remember`."""
+
 LIMIT = 200
 
 
