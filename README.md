@@ -20,16 +20,17 @@ re-orient (`SELECT * LIMIT 2` ran 102 times across 14 agents), and invent defini
 This plugin keeps the first behaviour and removes the other three. Measured against a
 bare CLI on Claude Sonnet 5, two agents an arm, twenty sessions each:
 
-| | Bare CLI | Plugin |
-| :- | :- | :- |
-| Correct | 97.0% | 98.0% |
-| Queries run | 211 | 129 |
-| Redundant queries | 32% | 23% |
-| Turns per session | 7.2 | 4.0 |
-| Tokens per session | 191k | 102k |
-| Cost per correct answer | $0.061 | $0.045 |
+| | Bare CLI | Plugin v2.0 | Plugin v2.1 |
+| :- | :- | :- | :- |
+| Correct | 97.0% | 98.0% | 97.5% |
+| Queries run | 211 | 129 | 161 |
+| Redundant queries | 32% | 23% | 28% |
+| Orientation reads | 84 | 15 | 3 |
+| Turns per session | 7.2 | 4.0 | 3.4 |
+| Tokens per session | 191k | 102k | 97k |
+| Cost per correct answer | $0.061 | $0.045 | $0.045 |
 
-Same accuracy, 39% fewer queries, 26% cheaper per correct answer.
+Against the bare CLI: the same accuracy, 26% cheaper per correct answer, half the turns and tokens. v2.1's batching cut turns a further 15% and took orientation reads to near zero; it did not cut cost further, and a batch asks every question explicitly, so server-side query volume rose.
 
 ## What it does
 
@@ -113,7 +114,7 @@ The engine is Apache DataFusion. No `date_diff()` or `hour()` — `EXTRACT(EPOCH
 ## Develop
 
 ```sh
-./test.sh          # 43 tests against a fake `hotdata`, offline
+./test.sh          # 55 tests against a fake `hotdata`, offline
 ./test.sh -k guard
 ```
 
