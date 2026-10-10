@@ -42,6 +42,7 @@ def main() -> None:
                 "cache_write": usage.get("cache_creation_input_tokens", 0),
                 "error": bool(row.get("is_error")),
                 # the model that did the work, not the one that titled the session
+                "cli": row.get("cli_version", ""),
                 "models": [m for m, u in (row.get("modelUsage") or {}).items()
                            if (u.get("cacheReadInputTokens") or 0) > 1000],
                 # "unknown" means this CLI has no price for the model and is guessing,
@@ -123,6 +124,7 @@ def main() -> None:
             "stability": stability(graded),
             "models": sorted({m for r in rows for m in r.get("models", [])}),
             "cost_basis": sorted({b for r in rows for b in r.get("cost_basis", []) if b}),
+            "cli": sorted({r["cli"] for r in rows if r.get("cli")}),
             "swarm": redundancy.swarm_metrics(runs_of[arm], arm.split("_")[0]),
             "tools": redundancy.tool_use(runs_of[arm], arm.split("_")[0]),
             "invented_filter_errors": redundancy.invented_filter_errors(graded),
@@ -159,6 +161,8 @@ def main() -> None:
     for arm, r in sorted(report.items()):
         s = r.get("swarm") or {}
         priced = "" if r["cost_basis"] == ["list"] else "  COST UNRELIABLE"
+        if len(r.get("cli", [])) > 1:
+            priced += f"  MIXED CLI {','.join(v.split()[0] for v in r['cli'])}"
         print(f"{arm:9s} [{','.join(r['models']) or '?'}]{priced} acc={r['accuracy']:.1%} cost=${r['cost_total']:.2f} "
               f"$/correct={r['cost_per_correct']:.3f} turns={r['turns_total']} "
               f"redundant={s.get('redundant_pct', '?')}% orient={s.get('orientation_queries', '?')} "

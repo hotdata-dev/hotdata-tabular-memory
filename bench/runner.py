@@ -224,6 +224,8 @@ def main() -> int:
     work = root / "work"
     work.mkdir()
 
+    cli_version = subprocess.run(["claude", "--version"], capture_output=True,
+                                 text=True).stdout.strip()
     questions = json.loads((HERE / "questions.json").read_text())
     scope = f"{args.tag}-{agent}"
 
@@ -273,6 +275,7 @@ def main() -> int:
             result = {"is_error": True, "result": proc.stdout[-2000:],
                       "stderr": proc.stderr[-2000:]}
         result["wall_seconds"] = wall
+        result["cli_version"] = cli_version
         result["session_index"] = index
         result["pass"] = pass_no
         result["question_ids"] = [q["id"] for q in batch]
