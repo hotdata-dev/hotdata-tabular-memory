@@ -1,123 +1,113 @@
 # hotdata-memory
 
-A Claude Code plugin that keeps Claude's auto memory in [Hotdata](https://hotdata.dev)
-instead of only in Markdown files, using [hotmemory](https://github.com/hotdata-dev/hotmemory).
+Keeps an agent's memory as an append-only table in the [Hotdata](https://hotdata.dev)
+database the project already queries, so one statement reads memory beside the data.
 
-Each memory note becomes one row in a managed Hotdata database, so memory can be queried
-with SQL and joined to your own data. At the start of a session, the project's records
-are loaded back into Claude's context.
+**No dependencies.** Python's standard library and the `hotdata` CLI, which is the Rust
+SDK already compiled and already holding your credentials. No virtual environment, no
+bootstrap, no first-session delay.
 
 ## What it does
 
 | Hook | What happens |
 | :- | :- |
-| `SessionStart` | Prints the project's records as `additionalContext`. Reads a cached block, so the session never waits on the network |
-| `PostToolUse` on `Write`/`Edit` | A memory note that was just written becomes one fact in the store, and the cached block is rewritten |
+| `SessionStart` | Prints the project's records as `additionalContext`, from a cached block, so a session never waits on the network |
+| `PostToolUse` on `Write`/`Edit` | In mirror mode, a memory note that was just written becomes a record |
 
-A skill, `memory`, gives Claude the commands to search memory, read a subject, record a
-fact, and forget one.
+A skill, `memory`, gives Claude the commands to search, record, correct and forget.
+
+## The record
+
+One table, `agent_memory`, never updated in place:
+
+| Column | |
+| :- | :- |
+| `id` | `<subject>-<hash of the content>`, so writing the same fact twice stores it once |
+| `namespace` | `<scope prefix>/<project>` |
+| `subject` | what the record is about; two records on one subject is a conflict |
+| `kind` | `fact`, `profile`, or `procedure` |
+| `content` | the record |
+| `query` | the SQL that reproduces a figure, when the record carries one |
+| `supersedes` | the id this record replaces |
+| `tags`, `sources`, `actor`, `created_at` | provenance |
+
+The current set is every record nothing supersedes. Corrections append, so the history
+stays readable — which is the only reason an agent's wrong answer could be diagnosed at
+all when this was benchmarked.
+
+## Two refusals
+
+These are checks, not instructions, because instructions did not hold:
+
+- **A write carrying several figures with no `--query`.** A figure was true of one query
+  on one day; a wrong one recorded as fact is worse than no memory, because every later
+  answer inherits it.
+- **A second record on a subject that already has one saying something different.**
+  Decide with `memory supersede` rather than storing both.
+
+`--force` overrides the second when both are genuinely true.
 
 ## Install
 
 ```sh
 claude plugin marketplace add /path/to/claude-hotdata-plugin
-claude plugin install hotdata-memory@hotdata \
-  --config store=hotdata \
-  --config database_name=claude-memory \
-  --config workspace_id=<workspace id>
+claude plugin install hotdata-memory@hotdata --config database=<your database id>
 ```
 
-The first session installs `hotmemory` into the plugin's own environment in the
-background and loads memory from the session after it. To do that step now:
+Leave `database` empty to keep memory in a local JSON file instead.
 
-```sh
-CLAUDE_PLUGIN_DATA=~/.claude/plugins/data/hotdata-memory-hotdata \
-  bash ~/.claude/plugins/cache/hotdata/hotdata-memory/*/scripts/setup.sh
+To stop Claude asking before every read, add the read-only commands to
+`permissions.allow` in `~/.claude/settings.json`. Leave `remember`, `supersede` and
+`forget` out, so a change still asks:
+
+```json
+"allow": ["Bash(memory recall:*)", "Bash(memory list:*)", "Bash(memory status)"]
 ```
+
+Because the plugin has a top-level `bin/`, claude.ai and Cowork will not install it.
+Drop the directory and call `scripts/memcli.py` instead if you need to distribute there.
 
 ## Configuration
 
 | Option | Default | What it sets |
 | :- | :- | :- |
-| `store` | `local` | `hotdata` for a managed database, `local` for a JSON file |
-| `database_name` | `claude-memory` | Database to open, or create if it is missing |
-| `database_id` | — | Open this id instead of looking the name up |
-| `embedder` | `hashed` | `hashed` needs no key and matches words; `openai` needs `OPENAI_API_KEY` and matches meaning |
-| `scope_prefix` | `claude` | First label of the namespace. Records go under `<prefix>/<project>` |
+| `database` | — | The Hotdata database memory lives in. Empty means a local file |
+| `mode` | `mirror` | `mirror` follows Claude's memory files; `standalone` makes the table the only memory |
+| `project` | repository name | Names the project instead of letting the directory name it |
+| `scope_prefix` | `claude` | First label of the namespace |
 | `budget` | `2000` | Characters of memory loaded at session start |
-| `workspace_id` | first of the login | Workspace that holds the database |
-| `api_key` | — | Leave empty to use `HOTDATA_API_KEY`, or the key `hotdata auth login` saved |
-| `api_url` | — | Hotdata API base URL |
-| `memory_root` | `~/.claude/projects` | Directory under which a written `.md` file counts as a memory note |
-
-## How a note becomes a record
-
-A note's frontmatter `metadata.type` picks the hotmemory kind, and the type is kept as a
-tag so nothing is lost:
-
-| Claude type | hotmemory kind |
-| :- | :- |
-| `user` | `profile` |
-| `feedback` | `procedure` |
-| `project` | `fact` |
-| `reference` | `fact` |
-
-The note's `name` is the subject, its `description` and body are the content, and the
-file name and session id are the sources. `MEMORY.md` is the index that Claude rewrites
-from the notes, so it is not mirrored. Writing the same note again writes nothing.
+| `catalog` | read from the database | SQL alias of the database |
+| `memory_root` | `~/.claude/projects` | Where a written `.md` counts as a note, in mirror mode |
+| `memory_file` | plugin data dir | Where memory goes with no database |
 
 ## Commands
-
-The skill runs these; you can run them too:
-
-`bin/memory` is on the Bash tool's PATH while the plugin is enabled, so Claude runs it as
-a bare command. From your own shell, call it by path:
 
 ```sh
 memory status
 memory list
 memory recall "why do we use the hashed embedder?"
-memory profile deployment
 memory remember "Staging is rebuilt every Monday." --subject staging
-memory forget claude/my-project/fact-568dc85d@1
+memory remember "Row count is 2869585." --subject rows --query "SELECT count(*) FROM t"
+memory supersede <id> "<the correct fact>"
+memory forget <id>
 ```
-
-To stop Claude asking before every read, add the read-only commands to `permissions.allow`
-in `~/.claude/settings.json`. Leave `remember` and `forget` out, so a change or a deletion
-still asks:
-
-```json
-"allow": [
-  "Bash(memory recall:*)",
-  "Bash(memory profile:*)",
-  "Bash(memory list:*)",
-  "Bash(memory status)"
-]
-```
-
-Because the plugin has a top-level `bin/`, claude.ai and Cowork will not install it. Drop
-the directory and call `scripts/run.sh memcli` instead if you need to distribute it there.
 
 ## What this does not do
 
-- **A failure never blocks you.** If the store cannot be reached, a session still starts
-  and an edit still completes; the hook prints a `systemMessage` and stops.
-- **Files stay the source of truth locally.** The store is a mirror, so nothing is lost
-  if the plugin is removed. It does not yet write files back from the store.
-- **One process writes at a time.** hotmemory's driver loses a revision if two processes
-  put the same key, so every write takes a lock file on this machine. Two machines
-  writing the same key at the same moment is still unsafe.
-- **The default embedder matches words, not meaning.** Hotdata's server-side embedding
-  providers only embed through a provider-backed vector index, with no endpoint that
-  embeds arbitrary text, so using them would need a change in the hotmemory driver.
-  Set `embedder=openai` for semantic recall today.
+- **A failure never blocks you.** If the database cannot be reached, a session still
+  starts and an edit still completes; the hook prints a `systemMessage` and stops.
+- **Search is word matching.** The store is small and the session block carries it all;
+  a record is found by the words it uses, not by meaning.
+- **One writer at a time.** Two processes writing one key is unsafe in the engine today
+  — measured, not assumed — so concurrent agents should read freely and write from one
+  place.
 
 ## Develop
 
 ```sh
-./dev.sh          # builds a venv outside this directory and runs the tests
-./dev.sh -k cache # pytest flags pass through
+./test.sh          # builds a pytest venv outside this directory and runs the tests
+./test.sh -k clash
 ```
 
-Bump `version` in `.claude-plugin/plugin.json` and run `claude plugin update
-hotdata-memory@hotdata` to deploy a change; an unchanged version is not re-copied.
+Bump `version` in `.claude-plugin/plugin.json`, then `claude plugin update
+hotdata-memory@hotdata`; an unchanged version is not re-copied.

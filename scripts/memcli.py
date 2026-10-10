@@ -1,7 +1,6 @@
-"""The memory commands an agent runs: recall, profile, remember, forget, and status.
+"""The memory commands an agent runs: recall, list, remember, supersede, forget.
 
-Every command reads the store that the plugin is configured for, so no store flags
-are needed. A scope defaults to the project of the working directory.
+Everything comes from the plugin's configuration, so no store flags are needed.
 """
 
 from __future__ import annotations
@@ -11,150 +10,110 @@ import os
 import sys
 
 import bridge
-from hotmemory import Fact, Filter, normalize
-from hotmemory.contract import RECALLED_KINDS, fit_lines, render_line
+from hotdata import HotdataError
+from store import Record, figures, normalize, reads_as_a_conclusion
 
 
-def scope_of(args) -> tuple[str, ...]:
-    """Return the scope to read or write.
-
-    With no `--scope`, this resolves the same way the hooks do, so a command run from
-    a subdirectory, or from /tmp, still reaches the project's own memory.
-    """
+def namespace_of(args) -> str:
     if args.scope:
-        return tuple(bridge.label(part) for part in args.scope.split("/"))
-    return bridge.scope_for(os.getcwd())
+        return args.scope
+    return bridge.namespace_for(os.getcwd())
 
 
 def cmd_recall(args) -> int:
-    with bridge.memory() as memory:
-        _, block = memory.recall(args.query, [scope_of(args)], budget=args.budget, k=args.limit)
-    print(block or "no memory matches that question.")
-    return 0
-
-
-def cmd_profile(args) -> int:
-    with bridge.memory() as memory:
-        _, block = memory.profile(args.subject, [scope_of(args)], budget=args.budget)
-    print(block or f"no memory about {args.subject!r}.")
+    store = bridge.store()
+    found = store.search(namespace_of(args), args.query, limit=args.limit)
+    if not found:
+        held = len(store.current(namespace_of(args), limit=500))
+        print(f"no record matches those words. {held} record(s) are stored; "
+              f"`memory list` prints them." if held else "no memory is stored yet.")
+        return 0
+    print("\n".join(bridge.fit([r.line() for r in found], args.budget)))
     return 0
 
 
 def cmd_list(args) -> int:
-    scope = scope_of(args)
-    with bridge.memory() as memory:
-        records = memory.store.list(scope, Filter(kind=RECALLED_KINDS), limit=args.limit)
-    if not records:
-        print(f"no memory under {'/'.join(scope)}.")
+    namespace = namespace_of(args)
+    found = bridge.store().current(namespace, limit=args.limit)
+    if not found:
+        print(f"no memory under {namespace}.")
         return 0
-    lines = [f"{record.id}  {render_line(record)}" for record in records]
-    print("\n".join(lines[: fit_lines(lines, args.budget)]))
+    lines = [f"{r.id}  {r.line()}" for r in found]
+    print("\n".join(bridge.fit(lines, args.budget)))
     return 0
 
 
 def cmd_remember(args) -> int:
-    """Write one fact, after two checks that the content is worth keeping.
-
-    A record carrying several figures and no query is a cached answer: it was true of
-    one query on one day, and every later session inherits it. A record that nearly
-    repeats one already stored is a second opinion, and a store holding both leaves the
-    next session to guess. Neither is written.
-    """
-    payload = {}
-    if args.query:
-        payload["query"] = args.query
-    if not args.query and bridge.reads_as_a_conclusion(args.content):
-        found = ", ".join(bridge.figures(args.content)[:5])
-        print(
-            f"refused: this records figures ({found}) with no query to reproduce them.\n"
-            "A figure was true of one query on one day. Record the query that produces "
-            "it, with --query \"<sql>\", or record the method instead of the result.",
-            file=sys.stderr,
-        )
+    """Write one record, after the two checks that keep the store worth reading."""
+    namespace = namespace_of(args)
+    if not args.query and reads_as_a_conclusion(args.content):
+        found = ", ".join(figures(args.content)[:5])
+        print(f"refused: this records figures ({found}) with no query to reproduce "
+              f"them.\nA figure was true of one query on one day. Record the query "
+              f'that returns it with --query "<sql>", or record the method instead.',
+              file=sys.stderr)
         return 2
-    fact = Fact(
-        kind=args.kind,
-        subject=args.subject,
-        content=args.content,
-        tags=tuple(args.tags),
-        sources=tuple(args.sources),
-        payload=payload,
-    )
-    scope = scope_of(args)
-    with bridge.memory(write=True) as memory:
-        clash = None
-        if not args.force and fact.subject:
-            # The subject is the reliable signal. Two records about one subject that
-            # say different things leave the next session to guess which is right, and
-            # a vector distance does not catch it: the two clean-set definitions that
-            # broke the benchmark sat 0.60 apart, further than unrelated records.
-            same = memory.store.list(scope, Filter(subject=fact.subject), limit=50)
-            clash = next(
-                (r for r in same if normalize(r.content) != normalize(fact.content)), None)
-        if clash is None and not args.force:
-            clash = next(
-                (hit.record for hit in memory.candidates(fact, [scope], k=3)
-                 if hit.distance is not None and hit.distance <= bridge.NEAR
-                 and normalize(hit.record.content) != normalize(fact.content)), None)
+    store = bridge.store()
+    if args.subject and not args.force:
+        clash = next((r for r in store.by_subject(namespace, args.subject)
+                      if normalize(r.content) != normalize(args.content)), None)
         if clash is not None:
-            print(
-                f"refused: memory already holds a record on {fact.subject or 'this'} "
-                f"that says something different.\n\n  stored: {clash.id}\n"
-                f"  {clash.content[:300]}\n\n"
-                "Decide which is right rather than storing both. Replace it with\n"
-                f"  memory supersede {clash.id} \"<the correct fact>\"\n"
-                "or, if both are genuinely true, use a different --subject, or --force.",
-                file=sys.stderr,
-            )
+            print(f"refused: memory already holds a record on {args.subject} that says "
+                  f"something different.\n\n  stored: {clash.id}\n  "
+                  f"{clash.content[:300]}\n\nDecide which is right rather than storing "
+                  f'both:\n  memory supersede {clash.id} "<the correct fact>"\n'
+                  f"or use a different --subject, or --force.", file=sys.stderr)
             return 2
-        ids = memory.remember([fact], scope, actor=args.actor)
-    print("\n".join(ids))
+    record = Record(namespace=namespace, subject=args.subject, kind=args.kind,
+                    content=args.content, query=args.query,
+                    tags=",".join(args.tags), sources=",".join(args.sources),
+                    actor=args.actor)
+    print("\n".join(store.write([record])))
     return 0
 
 
 def cmd_supersede(args) -> int:
-    """Replace the current revision of the record named by `id`."""
-    scope = scope_of(args)
-    namespace, _, rest = args.id.rpartition("/")
-    key = rest.split("@")[0]
-    fact = Fact(kind=args.kind, subject=args.subject, content=args.content,
-                payload={"query": args.query} if args.query else {})
-    with bridge.memory(write=True) as memory:
-        new_id = memory.supersede(tuple(namespace.split("/")), key, fact,
-                                  actor=args.actor)
-    print(new_id)
+    """Append a record replacing `id`. The old one stays readable in history."""
+    namespace = namespace_of(args)
+    store = bridge.store()
+    old = next((r for r in store.current(namespace, limit=500) if r.id == args.id), None)
+    if old is None:
+        print(f"no current record with id {args.id}", file=sys.stderr)
+        return 2
+    record = Record(namespace=namespace, subject=args.subject or old.subject,
+                    kind=args.kind or old.kind, content=args.content,
+                    query=args.query, supersedes=args.id, actor=args.actor)
+    print("\n".join(store.write([record])))
     return 0
 
 
 def cmd_forget(args) -> int:
-    with bridge.memory(write=True) as memory:
-        removed = memory.forget([scope_of(args)], ids=args.ids)
-    print("\n".join(removed) or "nothing matched.")
+    gone = bridge.store().forget(namespace_of(args), args.ids)
+    print("\n".join(gone) or "nothing matched.")
     return 0
 
 
 def cmd_status(args) -> int:
-    store = bridge.option("store", "local")
-    scope = scope_of(args)
-    print(f"store:    {store}")
-    print(f"embedder: {bridge.option('embedder', 'hashed')}")
-    print(f"scope:    {'/'.join(scope)}")
-    if store == "hotdata":
-        bridge.credentials()
-        print(f"workspace: {os.environ.get('HOTDATA_WORKSPACE', '(first of the login)')}")
-        print(f"api key:   {'set' if os.environ.get('HOTDATA_API_KEY') else 'MISSING'}")
-    else:
-        print(f"file:     {bridge.option('memory_file') or bridge.data_dir() / 'memory.json'}")
-    with bridge.memory() as memory:
-        records = memory.store.list(scope, Filter(kind=RECALLED_KINDS), limit=1000)
-    print(f"records:  {len(records)} under this scope")
+    store = bridge.store()
+    namespace = namespace_of(args)
+    where = getattr(store, "qualified", None) or getattr(store, "path", "?")
+    print(f"store:     {'hotdata' if getattr(store, 'database', None) else 'file'}")
+    print(f"location:  {where}")
+    if getattr(store, "database", None):
+        print(f"database:  {store.database}")
+    print(f"namespace: {namespace}")
+    print(f"mode:      {bridge.option('mode', 'mirror')}")
+    try:
+        print(f"records:   {len(store.current(namespace, limit=1000))}")
+    except Exception as error:
+        print(f"records:   unreachable — {error}")
     return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="memory", description=__doc__)
     parser.add_argument("--scope", help="namespace such as claude/my-project")
-    parser.add_argument("--budget", type=int, default=2000, help="characters to print")
+    parser.add_argument("--budget", type=int, default=2000)
     sub = parser.add_subparsers(dest="command", required=True)
 
     recall = sub.add_parser("recall", help="print the records that answer a question")
@@ -162,45 +121,47 @@ def main(argv: list[str] | None = None) -> int:
     recall.add_argument("--limit", type=int, default=10)
     recall.set_defaults(run=cmd_recall)
 
-    profile = sub.add_parser("profile", help="print every current record about a subject")
-    profile.add_argument("subject")
-    profile.set_defaults(run=cmd_profile)
-
-    listing = sub.add_parser("list", help="print every current record under the scope")
+    listing = sub.add_parser("list", help="print every current record")
     listing.add_argument("--limit", type=int, default=100)
     listing.set_defaults(run=cmd_list)
 
     remember = sub.add_parser("remember", help="write one fact")
     remember.add_argument("content")
     remember.add_argument("--subject", default="")
-    remember.add_argument("--kind", default="fact", choices=["fact", "profile", "procedure"])
+    remember.add_argument("--kind", default="fact",
+                          choices=["fact", "profile", "procedure"])
+    remember.add_argument("--query", default="",
+                          help="the SQL that reproduces this, when it carries a figure")
     remember.add_argument("--tag", action="append", default=[], dest="tags")
     remember.add_argument("--source", action="append", default=[], dest="sources")
     remember.add_argument("--actor", default="claude-code")
-    remember.add_argument("--query", default="",
-                          help="the SQL that reproduces this, when it carries a figure")
-    remember.add_argument("--force", action="store_true",
-                          help="write even though it nearly repeats a stored record")
+    remember.add_argument("--force", action="store_true")
     remember.set_defaults(run=cmd_remember)
 
     sup = sub.add_parser("supersede", help="replace a record that turned out wrong")
-    sup.add_argument("id", help="the record id to replace")
+    sup.add_argument("id")
     sup.add_argument("content")
     sup.add_argument("--subject", default="")
-    sup.add_argument("--kind", default="fact", choices=["fact", "profile", "procedure"])
+    sup.add_argument("--kind", default="", choices=["", "fact", "profile", "procedure"])
     sup.add_argument("--query", default="")
     sup.add_argument("--actor", default="claude-code")
     sup.set_defaults(run=cmd_supersede)
 
-    forget = sub.add_parser("forget", help="delete every revision of the keys of these ids")
+    forget = sub.add_parser("forget", help="delete records outright")
     forget.add_argument("ids", nargs="+")
     forget.set_defaults(run=cmd_forget)
 
-    status = sub.add_parser("status", help="print the store, scope, and record count")
+    status = sub.add_parser("status", help="print where memory lives and how much")
     status.set_defaults(run=cmd_status)
 
     args = parser.parse_args(argv)
-    return args.run(args)
+    try:
+        return args.run(args)
+    except HotdataError as error:
+        # A CLI failure is a message, not a stack trace: the agent reading this
+        # should learn what to fix, not what the plugin is made of.
+        print(f"memory: {error}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

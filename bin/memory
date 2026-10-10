@@ -1,6 +1,6 @@
-#!/usr/bin/env bash
-# The memory command. On the Bash tool's PATH while this plugin is enabled.
-# Everything it needs comes from the plugin's configuration, so it takes no store flags.
-set -uo pipefail
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-exec bash "$ROOT/scripts/run.sh" memcli "$@"
+#!/usr/bin/env python3
+"""The memory command. On the Bash tool's PATH while this plugin is enabled."""
+import os, sys
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "scripts"))
+from memcli import main
+sys.exit(main())
