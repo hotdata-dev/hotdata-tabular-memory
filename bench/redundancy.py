@@ -30,6 +30,9 @@ def is_orientation(sql: str) -> bool:
         return True
     return bool(PEEK.search(sql)) and not RANKING.search(sql)
 QUERY = re.compile(r'(?:hotdata query|hd query)\s+"(.+?)"\s*(?:-d|\||$|;)', re.S)
+BATCH_ARG = re.compile(r'"(?:[A-Za-z_][A-Za-z0-9_]*\s*:\s*)?((?:select|with)\b.+?)"(?=\s|$)', re.I | re.S)
+BATCH_HEREDOC = re.compile(r"hd batch\s*<<\s*'?(\w+)'?\n(.*?)\n\1", re.S)
+LABEL_LINE = re.compile(r"^\s*--\s*\w+\s*$")
 
 
 def norm(sql: str) -> str:
@@ -63,6 +66,15 @@ def queries_of(path: Path) -> list[str]:
                 cmd = (c.get("input") or {}).get("command", "")
                 for m in QUERY.finditer(cmd):
                     out.append(norm(m.group(1)))
+                if "hd batch" in cmd:
+                    for m in BATCH_HEREDOC.finditer(cmd):
+                        for stmt in m.group(2).split(";"):
+                            body = "\n".join(l for l in stmt.splitlines() if not LABEL_LINE.match(l)).strip()
+                            if body:
+                                out.append(norm(body))
+                    head = cmd.split("<<", 1)[0] if "<<" in cmd else cmd
+                    for m in BATCH_ARG.finditer(head):
+                        out.append(norm(m.group(1)))
     return out
 
 

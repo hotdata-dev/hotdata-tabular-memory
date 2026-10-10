@@ -18,10 +18,12 @@ def main() -> None:
     sources = [(HERE / "runs", ""), (HERE / "runs-v6", "_fixed"), (HERE / "runs-v21", "_v21")]
     arms: dict[str, list] = defaultdict(list)
     answers: dict[str, list] = defaultdict(list)
-    agents = [(p, suffix) for runs, suffix in sources if runs.is_dir()
+    agents = [(p, suffix, runs) for runs, suffix in sources if runs.is_dir()
               for p in sorted(runs.iterdir()) if p.is_dir()]
-    for agent, suffix in agents:
+    runs_of: dict[str, Path] = {}
+    for agent, suffix, runs in agents:
         arm = agent.name.rsplit("-r", 1)[0] + suffix
+        runs_of[arm] = runs
         for path in sorted(agent.glob("s*.json")):
             row = json.loads(path.read_text())
             usage = row.get("usage") or {}
@@ -111,7 +113,7 @@ def main() -> None:
                 str(k): sum(v) for k, v in sorted(pass_turns.items())
             },
             "stability": stability(graded),
-            "swarm": redundancy.swarm_metrics(HERE / "runs", arm.replace("_fixed", "")),
+            "swarm": redundancy.swarm_metrics(runs_of[arm], arm.split("_")[0]),
             "invented_filter_errors": redundancy.invented_filter_errors(graded),
             "per_agent": sorted(
                 [
