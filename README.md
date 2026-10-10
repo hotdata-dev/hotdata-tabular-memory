@@ -20,17 +20,21 @@ re-orient (`SELECT * LIMIT 2` ran 102 times across 14 agents), and invent defini
 This plugin keeps the first behaviour and removes the other three. Measured against a
 bare CLI on Claude Sonnet 5, two agents an arm, twenty sessions each:
 
-| | Bare CLI | Plugin v2.0 | Plugin v2.1 |
-| :- | :- | :- | :- |
-| Correct | 97.0% | 98.0% | 97.5% |
-| Queries run | 211 | 129 | 161 |
-| Redundant queries | 32% | 23% | 28% |
-| Orientation reads | 84 | 15 | 3 |
-| Turns per session | 7.2 | 4.0 | 3.4 |
-| Tokens per session | 191k | 102k | 97k |
-| Cost per correct answer | $0.061 | $0.045 | $0.045 |
+Measured against three alternatives on Claude Sonnet 5, two agents each, twenty
+sessions, the same fifty questions twice. The baseline is Claude with **no Hotdata at
+all** — the parquet on disk and whatever the machine has, which turned out to be DuckDB.
 
-Against the bare CLI: the same accuracy, 26% cheaper per correct answer, half the turns and tokens. v2.1's batching cut turns a further 15% and took orientation reads to near zero; it did not cut cost further, and a batch asks every question explicitly, so server-side query volume rose.
+| | No Hotdata | Hotdata CLI | Plugin v2.0 | Plugin v2.1 |
+| :- | :- | :- | :- | :- |
+| Correct | 95.0% | 97.0% | 98.0% | 97.5% |
+| Right then wrong | 3 | 2 | 0 | 0 |
+| Turns / session | 5.0 | 7.2 | 4.0 | 3.4 |
+| Tokens / session | 138k | 191k | 102k | 97k |
+| Tokens / correct answer | 29,125 | 39,414 | 20,834 | 19,981 |
+| $ / correct answer | $0.053 | $0.061 | $0.045 | $0.045 |
+| Seconds / session | 21s | 33s | 16s | 15s |
+
+Against working locally with no database: the same cost in dollars, **32% fewer turns, 30% fewer tokens and 29% less wall time**, with three accuracy points and three right-then-wrong flips recovered. Against the raw Hotdata CLI the gap is wider on every axis. Note the benchmark is 48MB on the agent's own machine, which is the case most favourable to the local baseline.
 
 ## What it does
 
