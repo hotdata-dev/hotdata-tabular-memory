@@ -328,7 +328,7 @@ def test_a_near_repeat_that_disagrees_is_refused(env):
               "--subject", "clean-set"]
     out = memcli(second)
     assert out.returncode == 2
-    assert "nearly repeats a record already stored" in out.stderr
+    assert "says something different" in out.stderr
     assert "memory supersede" in out.stderr
     out = memcli([*second, "--force"])
     assert out.returncode == 0, out.stderr
@@ -341,3 +341,27 @@ def test_writing_the_same_fact_again_is_still_free(env):
     assert memcli(args).returncode == 0
     with bridge.memory() as memory:
         assert len(memory.store.list(("claude", "t"), limit=10)) == 1
+
+
+def test_two_records_on_one_subject_are_refused_however_differently_worded(env):
+    """The pair that broke the benchmark sat 0.60 apart; only the subject caught it."""
+    first = ["--scope", "claude/t", "--", "remember"] if False else [
+        "--scope", "claude/t", "remember",
+        "NYC taxi Jan-2024 clean set definition I use: pickup in January, "
+        "dropoff after pickup, duration under a day, distance above zero",
+        "--subject", "clean-set"]
+    assert memcli(first).returncode == 0
+    second = ["--scope", "claude/t", "remember",
+              "Benchmark 'clean set' for yellow taxi: keep rows where fare_amount "
+              "is positive and total_amount is positive",
+              "--subject", "clean-set"]
+    out = memcli(second)
+    assert out.returncode == 2
+    assert "memory supersede" in out.stderr
+
+
+def test_a_different_subject_is_not_a_clash(env):
+    assert memcli(["--scope", "claude/t", "remember", "Engine is DataFusion",
+                   "--subject", "dialect"]).returncode == 0
+    assert memcli(["--scope", "claude/t", "remember", "Zones table has 265 rows",
+                   "--subject", "zones"]).returncode == 0

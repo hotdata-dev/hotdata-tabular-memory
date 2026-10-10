@@ -82,23 +82,31 @@ def cmd_remember(args) -> int:
     )
     scope = scope_of(args)
     with bridge.memory(write=True) as memory:
-        if not args.force:
-            near = [
-                hit for hit in memory.candidates(fact, [scope], k=3)
-                if hit.distance is not None and hit.distance <= bridge.NEAR
-                and normalize(hit.record.content) != normalize(fact.content)
-            ]
-            if near:
-                hit = near[0]
-                print(
-                    f"refused: this nearly repeats a record already stored, and the two "
-                    f"disagree.\n\n  stored: {hit.record.id}\n  {hit.record.content[:300]}\n\n"
-                    "Decide which is right. Replace the stored one with\n"
-                    f"  memory supersede {hit.record.id} \"<the correct fact>\"\n"
-                    "or keep both deliberately with --force.",
-                    file=sys.stderr,
-                )
-                return 2
+        clash = None
+        if not args.force and fact.subject:
+            # The subject is the reliable signal. Two records about one subject that
+            # say different things leave the next session to guess which is right, and
+            # a vector distance does not catch it: the two clean-set definitions that
+            # broke the benchmark sat 0.60 apart, further than unrelated records.
+            same = memory.store.list(scope, Filter(subject=fact.subject), limit=50)
+            clash = next(
+                (r for r in same if normalize(r.content) != normalize(fact.content)), None)
+        if clash is None and not args.force:
+            clash = next(
+                (hit.record for hit in memory.candidates(fact, [scope], k=3)
+                 if hit.distance is not None and hit.distance <= bridge.NEAR
+                 and normalize(hit.record.content) != normalize(fact.content)), None)
+        if clash is not None:
+            print(
+                f"refused: memory already holds a record on {fact.subject or 'this'} "
+                f"that says something different.\n\n  stored: {clash.id}\n"
+                f"  {clash.content[:300]}\n\n"
+                "Decide which is right rather than storing both. Replace it with\n"
+                f"  memory supersede {clash.id} \"<the correct fact>\"\n"
+                "or, if both are genuinely true, use a different --subject, or --force.",
+                file=sys.stderr,
+            )
+            return 2
         ids = memory.remember([fact], scope, actor=args.actor)
     print("\n".join(ids))
     return 0
