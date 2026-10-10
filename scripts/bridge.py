@@ -94,6 +94,11 @@ def credentials() -> None:
         os.environ["HOTDATA_API_URL"] = url
 
 
+def mode() -> str:
+    """Return `mirror` or `standalone`."""
+    return "standalone" if option("mode", "mirror") == "standalone" else "mirror"
+
+
 def memory_roots() -> list[Path]:
     """Return the directories under which a written file counts as a memory file."""
     override = option("memory_root")

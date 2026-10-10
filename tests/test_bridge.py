@@ -203,3 +203,29 @@ def test_a_store_that_cannot_be_reached_does_not_block_an_edit(env, monkeypatch)
     monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_API_KEY", "none")
     out = hook("capture", {"tool_input": {"file_path": str(path)}, "cwd": "/x/a-project"})
     assert "hotdata-memory:" in out["systemMessage"]
+
+
+# -------------------------------------------------------------------- standalone mode
+
+
+def test_standalone_tells_claude_how_to_write_when_memory_is_empty(env, monkeypatch):
+    monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_MODE", "standalone")
+    out = hook("session_start", {"cwd": "/x/a-project"})
+    context = out["hookSpecificOutput"]["additionalContext"]
+    assert "memory remember" in context
+    assert "No memory is recorded" in context
+
+
+def test_standalone_keeps_the_instructions_beside_the_records(env, monkeypatch):
+    path = env / "a-project" / "memory" / "n.md"
+    path.write_text(NOTE, encoding="utf-8")
+    hook("capture", {"tool_input": {"file_path": str(path)}, "cwd": "/x/a-project"})
+    bridge.cache_path(("claude", "a-project")).unlink()
+    monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_MODE", "standalone")
+    context = hook("session_start", {"cwd": "/x/a-project"})["hookSpecificOutput"]["additionalContext"]
+    assert "Eddie wants terse" in context
+    assert "memory remember" in context
+
+
+def test_mirror_mode_says_nothing_when_memory_is_empty(env):
+    assert hook("session_start", {"cwd": "/x/a-project"}) == {}

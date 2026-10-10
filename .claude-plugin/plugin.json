@@ -1,7 +1,7 @@
 {
   "name": "hotdata-memory",
   "displayName": "Hotdata Memory",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Stores Claude Code's auto memory as rows in Hotdata via hotmemory, and loads it back at session start.",
   "author": {
     "name": "Eddie",
@@ -80,6 +80,16 @@
       "type": "directory",
       "title": "Memory root",
       "description": "Directory under which a written .md file counts as a memory note. Defaults to ~/.claude/projects."
+    },
+    "mode": {
+      "type": "string",
+      "title": "Mode",
+      "description": "'mirror' follows Claude's memory files. 'standalone' makes the store the only memory: Claude records with the memory command and writes no files.",
+      "options": [
+        "mirror",
+        "standalone"
+      ],
+      "default": "mirror"
     }
   }
 }
