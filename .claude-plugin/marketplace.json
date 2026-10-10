@@ -8,7 +8,7 @@
     {
       "name": "hotdata-memory",
       "source": "./",
-      "description": "Stores Claude Code's auto memory as rows in Hotdata via hotmemory, and loads it back at session start."
+      "description": "Keeps an agent memory as an append-only table in the Hotdata database the project already queries."
     }
   ],
   "description": "Plugins that connect Claude Code to Hotdata."

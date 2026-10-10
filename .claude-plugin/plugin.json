@@ -1,7 +1,7 @@
 {
   "name": "hotdata-memory",
   "displayName": "Hotdata Memory",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Keeps an agent's memory as an append-only table in the Hotdata database the project already queries. No dependencies beyond the hotdata CLI.",
   "author": {
     "name": "Eddie",
