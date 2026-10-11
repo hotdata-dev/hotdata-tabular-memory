@@ -17,6 +17,7 @@ For every run directory under runs*/ it reports:
 from __future__ import annotations
 
 import json
+import re
 import statistics
 import sys
 from collections import defaultdict
@@ -28,6 +29,7 @@ HERE = Path(__file__).resolve().parent
 BENCH = Path.home() / "swarm-bench"
 PROJECTS = Path.home() / ".claude" / "projects"
 # Files only the harness may read, and the shared scratch space agents must not use.
+SPILL = re.compile(r"/private/tmp/claude-\d+/[^\s'\"]*")
 FORBIDDEN = ("truth.jsonl", "complaint_specs", "checks.jsonl", "complaints_raw", "/tmp/")
 
 
@@ -42,7 +44,9 @@ def leaks(session: dict) -> list[str]:
                 continue
             for c in e["message"].get("content", []):
                 if c.get("type") == "tool_use":
-                    text = json.dumps(c["input"])
+                    # Claude Code saves a large tool result under /private/tmp/claude-<uid>/
+                    # in a directory of the session's own; reading it back is not a leak.
+                    text = SPILL.sub("", json.dumps(c["input"]))
                     found.update(f for f in FORBIDDEN if f in text)
     return sorted(found)
 
