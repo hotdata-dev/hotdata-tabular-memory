@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import csv
 import io
+import json
 import os
 import re
 import sys
@@ -55,24 +56,75 @@ def with_names(error: HotdataError, e: dict) -> HotdataError:
     return HotdataError(f"{error}\n  tables here: {tables}\n  definitions: {names}")
 
 
-def run_one(e: dict, sql: str, cap: int, stream_all: bool) -> tuple[int, str]:
-    """Expand, check, run one query; return (exit code, text to print)."""
-    sql = defs.expand(sql, project_label=e["project"])
-    if not stream_all and discipline.classify(sql) == "unbounded":
-        return 2, discipline.refusal(sql, cap)
-    try:
-        if stream_all:
-            return 0, hotdata.stream_csv(sql, e["database"])
-        result = hotdata.query(sql, e["database"])
-    except HotdataError as error:
-        raise with_names(error, e) from None
-    total = int(result.get("total_row_count") or len(result.get("rows") or []))
-    rows, footer = discipline.trim(result.get("rows") or [], total, cap)
+SUGGESTION = re.compile(r"No field named (\S+?)\. Did you mean '(.+?)'\?")
+
+
+def apply_suggestion(sql: str, error: HotdataError) -> tuple[str, str] | None:
+    """Rewrite the unquoted name the engine could not find to the one it suggests.
+
+    The engine folds an unquoted name to lower case, so `t.PULocationID` is looked up
+    as `t.pulocationid` and fails, and it says which quoted name was meant. Applying
+    that costs nothing; an agent retrying by hand costs a turn.
+    """
+    m = SUGGESTION.search(str(error))
+    if not m:
+        return None
+    wrong, right = m.group(1), m.group(2)
+    parts = [re.escape(p) for p in wrong.split(".")]
+    pattern = re.compile(r'(?<![\w"])' + r"\s*\.\s*".join(parts) + r'(?![\w"])', re.I)
+    fixed, n = pattern.subn(right, sql)
+    return (fixed, f"{wrong} -> {right}") if n else None
+
+
+def render(columns: list, rows: list, fmt: str) -> str:
+    if fmt == "json":
+        return json.dumps([dict(zip(columns, r, strict=False)) for r in rows],
+                          default=str) + "\n"
     out = io.StringIO()
     writer = csv.writer(out)
-    writer.writerow(result.get("columns") or [])
+    writer.writerow(columns)
     writer.writerows(rows)
-    return 0, out.getvalue() + (footer + "\n" if footer else "")
+    return out.getvalue()
+
+
+def run_one(e: dict, sql: str, cap: int, stream_all: bool, fmt: str = "csv",
+            out_file: str = "") -> tuple[int, str]:
+    """Expand, check, run one query; return (exit code, text to print)."""
+    sql = defs.expand(sql, project_label=e["project"])
+    notes = []
+    for _ in range(4):
+        try:
+            if stream_all or out_file:
+                text = hotdata.stream_csv(sql, e["database"])
+                break
+            result = hotdata.query(sql, e["database"])
+            break
+        except HotdataError as error:
+            fixed = apply_suggestion(sql, error)
+            if not fixed:
+                raise with_names(error, e) from None
+            sql, note = fixed
+            notes.append(note)
+    else:
+        raise HotdataError("too many unknown column names; quote uppercase names: \"PULocationID\"")
+    head = (f"note: ran with {', '.join(notes)} (uppercase names need double quotes)\n"
+            if notes else "")
+
+    if out_file:
+        rows = list(csv.reader(io.StringIO(text)))
+        columns, rows = (rows[0], rows[1:]) if rows else ([], [])
+        Path(out_file).write_text(render(columns, rows, fmt) if fmt == "json" else text)
+        return 0, head + f"wrote {len(rows)} rows to {out_file} (columns: {', '.join(columns)})\n"
+    if stream_all:
+        return 0, head + text
+
+    total = int(result.get("total_row_count") or len(result.get("rows") or []))
+    # The cap protects context from a scan, not from a short list: a query with no
+    # aggregate and no LIMIT is refused only when it really returns more than the cap.
+    if discipline.classify(sql) == "unbounded" and total > cap:
+        return 2, head + discipline.refusal(sql, cap, total)
+    rows, footer = discipline.trim(result.get("rows") or [], total, cap)
+    return 0, head + render(result.get("columns") or [], rows, fmt) + (footer + "\n" if footer else "")
 
 
 def print_csv(columns: list, rows: list) -> None:
@@ -109,7 +161,8 @@ def cmd_load(args) -> int:
 
 def cmd_query(args) -> int:
     e = entry()
-    code, text = run_one(e, args.sql, row_cap(), args.all)
+    cap = args.limit or row_cap()
+    code, text = run_one(e, args.sql, cap, args.all, args.format, args.out)
     print(text, end="", file=sys.stderr if code else sys.stdout)
     return code
 
@@ -290,6 +343,9 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("query", help="run SQL; {{name}} expands to a definition")
     s.add_argument("sql"); s.add_argument("--all", action="store_true",
                                           help="stream every row as CSV, uncapped")
+    s.add_argument("--format", "-o", choices=["csv", "json"], default="csv")
+    s.add_argument("--limit", type=int, default=0, help="show up to this many rows")
+    s.add_argument("--out", default="", help="write every row to this file; print a summary")
     s.set_defaults(run=cmd_query)
 
     s = sub.add_parser("batch", help="run several queries in one call: 'label: SELECT ...' args, or a script on stdin")

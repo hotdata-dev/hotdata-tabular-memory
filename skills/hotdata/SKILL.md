@@ -56,9 +56,12 @@ hd query "SELECT count(*) FROM taxi.public.trips WHERE fare_amount > 0"
 hd query "SELECT \"PULocationID\", count(*) AS n FROM taxi.public.trips GROUP BY 1 ORDER BY n DESC LIMIT 10"
 ```
 
-Aggregate, or add a `LIMIT`. A `SELECT *` with no `LIMIT` is refused, and anything over
-the row cap is cut with a footer — the rows are still on the server, and `hd share`
-keeps them there as a table. `--all` streams everything as CSV when you truly need it.
+Aggregate, or add a `LIMIT`. A query with neither is refused when it matches more rows
+than the row cap, and anything over the cap is cut with a footer — the rows are still on
+the server, and `hd share` keeps them there as a table. `--out rows.csv` writes every row
+to a file and prints only a summary; `--format json` prints objects; `--limit N` raises
+the cap for one call. `INSERT INTO <catalog>.public.<table> ... VALUES ...` writes rows;
+put them all in one statement.
 
 ## Name a definition
 

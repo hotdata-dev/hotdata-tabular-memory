@@ -67,6 +67,12 @@ elif a[0] == "query":
     elif "min(" in sql and "max(" in sql:
         out({"columns": ["lo_0", "hi_0"], "rows": [["2024-01-01T00:00:00", "2024-02-03T12:00:00"]],
              "total_row_count": 1})
+    elif __import__("re").search(r'(?<!")\bt\.pulocationid', a[1], __import__("re").I):
+        print("error: No field named t.pulocationid. Did you mean 't.\"PULocationID\"'?",
+              file=sys.stderr); sys.exit(1)
+    elif "short_list" in sql:
+        out({"columns": ["complaint_id"], "rows": [[i] for i in range(150)],
+             "total_row_count": 150})
     elif "nope" in sql:
         print("error: table 'taxi.public.nope' not found", file=sys.stderr); sys.exit(1)
     elif "count(*)" in sql:
@@ -345,6 +351,37 @@ def test_an_unbounded_query_is_refused(env):
     out = hd(["query", "SELECT * FROM taxi.public.trips"], env)
     assert out.returncode == 2
     assert "hd share" in out.stderr
+
+
+def test_a_short_list_without_a_limit_is_shown_not_refused(env):
+    """The cap protects context from a scan; 150 ids are not a scan."""
+    project.project_database(create=True)
+    out = hd(["query", "SELECT complaint_id FROM short_list"], env)
+    assert out.returncode == 0, out.stderr
+    assert out.stdout.count("\n") == 151
+
+
+def test_an_unquoted_uppercase_column_is_fixed_from_the_engines_suggestion(env):
+    project.project_database(create=True)
+    out = hd(["query", "SELECT count(*) FROM taxi.public.trips t WHERE t.PULocationID = 132"], env)
+    assert out.returncode == 0, out.stderr
+    assert '"PULocationID"' in out.stdout and "2869585" in out.stdout
+    assert any('t."PULocationID" = 132' in c for c in calls(env))
+
+
+def test_out_writes_every_row_to_a_file_and_prints_only_a_summary(env):
+    project.project_database(create=True)
+    out = hd(["query", "SELECT x FROM t", "--out", "rows.csv"], env)
+    assert out.returncode == 0, out.stderr
+    assert "wrote 3 rows to rows.csv" in out.stdout
+    assert Path("rows.csv").read_text() == "x\n1\n2\n3\n"
+
+
+def test_format_json_prints_one_object_per_row(env):
+    project.project_database(create=True)
+    out = hd(["query", "SELECT fare_amount, PULocationID FROM t LIMIT 2", "--format", "json"], env)
+    assert out.returncode == 0, out.stderr
+    assert json.loads(out.stdout)[0] == {"fare_amount": 10.5, "PULocationID": 132}
 
 
 def test_a_capped_query_is_cut_with_a_footer(env):

@@ -31,13 +31,14 @@ def classify(sql: str) -> str:
     return "unbounded"
 
 
-def refusal(sql: str, cap: int) -> str:
-    kind = classify(sql)
+def refusal(sql: str, cap: int, total: int = 0) -> str:
     star = bool(STAR.search(sql))
     what = "a `SELECT *` with no LIMIT" if star else "a scan with no aggregate and no LIMIT"
-    return (f"refused: this is {what}, which would pull every matching row into context.\n"
-            f"Aggregate it, add `LIMIT {cap}`, or keep the rows on the server:\n"
+    size = f" It matches {total:,} rows." if total else ""
+    return (f"refused: this is {what}, which would pull every matching row into context.{size}\n"
+            f"Aggregate it, add `LIMIT {cap}`, or keep the rows out of context:\n"
             f"  hd share <table> \"<the query>\"     # materialise it, then query the table\n"
+            f"  hd query \"<the query>\" --out rows.csv   # every row to a file\n"
             f"Pass --all to stream the whole result anyway.")
 
 
