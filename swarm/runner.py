@@ -63,7 +63,7 @@ Keep any scratch files in your working directory.
 
 Record every classification you make, with your agent id `{agent}`, so the work is not
 lost: {record}
-
+{claiming}
 Question: {ask}
 
 When you are done, print one final line and nothing after it:
@@ -102,12 +102,35 @@ session started with its tables, a sample of each and the SQL dialect. The table
     {cat}.public.complaints   complaint_id, trip_id, text
     {cat}.public.zones        the LocationID lookup, with Borough and Zone
     {cat}.public.labels       complaint_id, category, agent
+    {cat}.public.claims       complaint_id, agent: work in progress
 
 `labels` holds the classifications other agents working on related questions have
 made. Use them rather than classifying a complaint again.""",
         "INSERT them into {cat}.public.labels with `hd query`, all of them in one "
         "statement. If the insert is refused with \"retry shortly\", another agent is "
         "writing; run the same statement again after a few seconds."),
+}
+
+CLAIMING = """
+Other agents are working at the same time, often on the same complaints. Before you
+classify, claim the work so two agents never classify the same complaint:
+
+1. Find the complaints your question needs that have no label yet.
+2. Claim the ones nobody has claimed: {claim}
+3. Classify exactly the complaints you claimed, and record them as above.
+4. A complaint another agent claimed but has not labelled yet is being classified
+   now. Wait about 30 seconds and check the labels again. If one is still missing after
+   five minutes, classify it yourself.
+"""
+
+CLAIMS = {
+    "folder": "create the empty file {shared}/claims/<complaint_id> for each one, "
+              "exclusively, so creating it fails if it already exists (in Python, "
+              "open(path, 'x')). The files you created are your claims.",
+    "hotdata": "in one statement, INSERT INTO {cat}.public.claims (complaint_id, agent) "
+               "SELECT the unlabelled, unclaimed ids with '{agent}' as the agent, excluding "
+               "complaint_id IN (SELECT complaint_id FROM {cat}.public.claims). Your claims "
+               "are the rows with agent = '{agent}'.",
 }
 
 ANSWER = re.compile(r"^ANSWER\s+(.+?)\s*$", re.M)
@@ -147,6 +170,10 @@ def make_database(name: str, scratch: Path) -> tuple[str, str]:
     duckdb.execute(f"COPY (SELECT 0::INTEGER AS complaint_id, ''::VARCHAR AS category, "
                    f"''::VARCHAR AS agent WHERE false) TO '{seed}' (FORMAT parquet)")
     hotdata("databases", "load", "--catalog", catalog, "--table", "labels", "--file", str(seed))
+    claims = scratch / "claims_empty.parquet"
+    duckdb.execute(f"COPY (SELECT 0::INTEGER AS complaint_id, ''::VARCHAR AS agent "
+                   f"WHERE false) TO '{claims}' (FORMAT parquet)")
+    hotdata("databases", "load", "--catalog", catalog, "--table", "claims", "--file", str(claims))
     return db, catalog
 
 
@@ -206,13 +233,15 @@ def main() -> int:
     parser.add_argument("--pick", default="", help="run only these task ids, in this order")
     parser.add_argument("--model", default="claude-opus-5")
     parser.add_argument("--out", type=Path, default=BENCH / "runs")
+    parser.add_argument("--claim", action="store_true",
+                        help="shared arms claim complaints before classifying them")
     args = parser.parse_args()
 
     AGENT_DATA.mkdir(parents=True, exist_ok=True)
     for f in SOURCES.values():
         if not (AGENT_DATA / f).exists():
             shutil.copy(DATA / f, AGENT_DATA / f)
-    name = f"{args.arm}-c{args.concurrency}-r{args.replicate}"
+    name = f"{args.arm}-c{args.concurrency}-r{args.replicate}" + ("-claim" if args.claim else "")
     root = args.out.resolve() / name
     if root.exists():
         shutil.rmtree(root)
@@ -231,6 +260,7 @@ def main() -> int:
     shared = root / "shared"
     if args.arm == "folder":
         (shared / "labels").mkdir(parents=True)
+        (shared / "claims").mkdir()
     if args.arm == "hotdata":
         db, catalog = make_database(name, root)
         env["HOTDATA_API_KEY"] = (Path.home() / ".hotdata/api-key").read_text().strip()
@@ -243,6 +273,7 @@ def main() -> int:
     (root / "run.json").write_text(json.dumps({
         "arm": args.arm, "concurrency": args.concurrency, "replicate": args.replicate,
         "model": args.model, "cli": cli_version, "database": db, "catalog": catalog,
+        "claim": args.claim,
         "tasks": [t["id"] for t in tasks]}, indent=1))
 
     categories = "\n".join(f"- {k}: {v}" for k, v in MEANING.items())
@@ -259,8 +290,12 @@ def main() -> int:
         work = root / "sessions" / task["id"]
         work.mkdir()
         fill = {**paths, "shared": str(shared), "cat": catalog}
+        fill["agent"] = task["id"]
+        claiming = (CLAIMING.format(claim=CLAIMS[args.arm].format(**fill))
+                    if args.claim and args.arm in CLAIMS else "")
         prompt = BRIEF.format(categories=categories, store=store.format(**fill),
-                              record=record.format(**fill), agent=task["id"], ask=task["ask"])
+                              record=record.format(**fill), claiming=claiming,
+                              agent=task["id"], ask=task["ask"])
         started = time.time()
         (work / "tmp").mkdir()
         proc = subprocess.run(
