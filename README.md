@@ -18,19 +18,19 @@ re-orient (`SELECT * LIMIT 2` ran 102 times across 14 agents), and invent defini
 (every correctness failure in 268 sessions was a filter the question never specified).
 
 This plugin keeps the first behaviour and removes the other three. Measured against
-three alternatives on Claude Opus 5, two agents each, twenty sessions, the same fifty
+two alternatives on Claude Opus 5, two agents each, twenty sessions, the same fifty
 questions twice. The baseline is Claude with **no Hotdata at all** — the parquet on disk
 and whatever the machine has, which turned out to be DuckDB.
 
-| | No Hotdata | Hotdata CLI | Plugin v2.0 | Plugin v2.1 |
-| :- | :- | :- | :- | :- |
-| Correct | 95.0% | 97.0% | 98.0% | 97.5% |
-| Right then wrong | 3 | 2 | 0 | 0 |
-| Turns / session | 5.0 | 7.2 | 4.0 | 3.4 |
-| Tokens / session | 138k | 191k | 102k | 97k |
-| Tokens / correct answer | 29,125 | 39,414 | 20,834 | 19,981 |
-| $ / correct answer | $0.053 | $0.061 | $0.045 | $0.045 |
-| Seconds / session | 21s | 33s | 16s | 15s |
+| | No Hotdata | Hotdata CLI | Plugin v2.1 |
+| :- | :- | :- | :- |
+| Correct | 95.0% | 97.0% | 97.5% |
+| Right then wrong | 3 | 2 | 0 |
+| Turns / session | 5.0 | 7.2 | 3.4 |
+| Tokens / session | 138k | 191k | 97k |
+| Tokens / correct answer | 29,125 | 39,414 | 19,981 |
+| $ / correct answer | $0.053 | $0.061 | $0.045 |
+| Seconds / session | 21s | 33s | 15s |
 
 Against working locally with no database: the same cost in dollars, **32% fewer turns, 30% fewer tokens and 29% less wall time**, with three accuracy points and three right-then-wrong flips recovered. Against the raw Hotdata CLI the gap is wider on every axis.
 

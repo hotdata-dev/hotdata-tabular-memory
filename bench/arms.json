@@ -78,43 +78,6 @@
    }
   },
   {
-   "label": "Plugin v2.0",
-   "sessions": 40,
-   "accuracy": 0.98,
-   "phase3": 1.0,
-   "phase4": 0.9,
-   "flips": 0,
-   "turns": 4.0,
-   "tools": 3.0,
-   "tool_mix": {
-    "Bash": 118
-   },
-   "input": 7,
-   "output": 838,
-   "cache_read": 85470,
-   "cache_write": 15774,
-   "tokens": 102090,
-   "cache_per_turn": 21638,
-   "tokens_per_correct": 20834,
-   "cost_session": 0.223,
-   "cost_correct": 0.045,
-   "secs": 16,
-   "swarm": {
-    "queries": 129,
-    "distinct": 99,
-    "redundant_pct": 23.3,
-    "orientation_queries": 15,
-    "agents": 2
-   },
-   "context": {
-    "n": 118,
-    "median": 243.0,
-    "p90": 535,
-    "max": 4994,
-    "total": 42517
-   }
-  },
-  {
    "label": "Plugin v2.1",
    "sessions": 40,
    "accuracy": 0.975,

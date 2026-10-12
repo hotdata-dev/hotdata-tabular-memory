@@ -1,9 +1,8 @@
-"""The four arms side by side: what each one was, and what it cost.
+"""The arms side by side: what each one was, and what it cost.
 
 local      no Hotdata at all — the files on disk, whatever the machine has
 bare       the Hotdata CLI from a brief, no plugin
-plugin     the plugin, v2.0: one database, orientation, definitions
-plugin_v21 the plugin, v2.1: the same plus hd batch and recent results
+plugin_v21 the plugin, v2.1: one database, orientation, definitions, hd batch
 """
 
 from __future__ import annotations
@@ -12,8 +11,7 @@ import json
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-ARMS = [("local", "No Hotdata"), ("bare", "Hotdata CLI"),
-        ("plugin", "Plugin v2.0"), ("plugin_v21", "Plugin v2.1")]
+ARMS = [("local", "No Hotdata"), ("bare", "Hotdata CLI"), ("plugin_v21", "Plugin v2.1")]
 
 
 def pct(x: float) -> str:
