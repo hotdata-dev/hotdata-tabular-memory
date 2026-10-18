@@ -6,7 +6,7 @@
   },
   "plugins": [
     {
-      "name": "hotdata",
+      "name": "hotdata-tabular-memory",
       "source": "./",
       "description": "Makes Hotdata the default database when a Claude agent meets data too big for its context."
     }

@@ -1,4 +1,4 @@
-# hotdata
+# hotdata-tabular-memory
 
 Makes [Hotdata](https://hotdata.dev) the default database when a Claude agent meets data
 too big for its context. One database per project, found by every agent working in it.
@@ -88,9 +88,12 @@ active-database pointer, which is global state two agents would fight over.
 ## Install
 
 ```sh
-claude plugin marketplace add /path/to/claude-hotdata-plugin
-claude plugin install hotdata@hotdata
+claude plugin marketplace add /path/to/hotdata-tabular-memory
+claude plugin install hotdata-tabular-memory@hotdata
 ```
+
+Upgrading from the plugin formerly named `hotdata`: uninstall `hotdata@hotdata`, then install
+`hotdata-tabular-memory@hotdata`. Version 3.0.0 is the rename; the behaviour is 2.1.3's.
 
 That is enough: the first `hd load` creates the project's database. To point a project
 at a database that already exists, `--config database=<id>`.

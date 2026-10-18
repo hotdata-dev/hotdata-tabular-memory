@@ -1,5 +1,5 @@
 ---
-name: hotdata
+name: tabular-memory
 description: Work with data that is too big for context — a CSV, parquet or JSON file over a few MB, a table with thousands of rows, a question that needs SQL over a dataset, or results that several agents need to share. Use it to load a file into Hotdata ("load this into a database"), to query it ("how many rows", "top 10 by", "average per group"), to name a filter every agent should apply the same way, and to keep a result on the server instead of pasting rows. Memory of the project's database and definitions loads at session start; reach for this when you need to load, query, define or share.
 ---
 

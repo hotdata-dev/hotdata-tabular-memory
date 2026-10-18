@@ -1,28 +1,75 @@
 {
-  "name": "hotdata",
-  "displayName": "Hotdata",
-  "version": "2.1.3",
+  "name": "hotdata-tabular-memory",
+  "displayName": "Hotdata Tabular Memory",
+  "version": "3.0.0",
   "description": "Makes Hotdata the default database when a Claude agent meets data too big for its context: one database per project, definitions every agent shares, results that stay on the server.",
-  "author": { "name": "Eddie", "email": "eddie@hotdata.dev" },
-  "repository": "https://github.com/hotdata-dev/claude-hotdata-plugin",
+  "author": {
+    "name": "Eddie",
+    "email": "eddie@hotdata.dev"
+  },
+  "repository": "https://github.com/hotdata-dev/hotdata-tabular-memory",
   "license": "MIT",
-  "keywords": ["hotdata", "data", "sql", "swarm"],
+  "keywords": [
+    "hotdata",
+    "data",
+    "sql",
+    "swarm",
+    "memory"
+  ],
   "userConfig": {
-    "database": { "type": "string", "title": "Database",
-      "description": "Pin the project's Hotdata database id. Otherwise the first `hd load` creates one and every agent in the project finds it." },
-    "project": { "type": "string", "title": "Project",
-      "description": "Name the project instead of letting the repository name it." },
-    "read_guard": { "type": "string", "title": "Large-file guard", "options": ["on", "off"], "default": "on",
-      "description": "Refuse to read a large data file into context and point at `hd load` instead." },
-    "guard_threshold_mb": { "type": "number", "title": "Guard threshold (MB)", "default": 8, "min": 1, "max": 1024,
-      "description": "A .csv/.tsv/.parquet/.json/.jsonl over this size is refused by the guard." },
-    "row_cap": { "type": "number", "title": "Row cap", "default": 200, "min": 1, "max": 10000,
-      "description": "Rows `hd query` returns before it stops and suggests `hd share`." },
-    "budget": { "type": "number", "title": "Orientation budget", "default": 2500, "min": 400, "max": 20000,
-      "description": "Characters of orientation injected at session start." },
-    "workspace": { "type": "string", "title": "Workspace id",
-      "description": "Leave empty to use the first workspace of the login." },
-    "catalog": { "type": "string", "title": "Catalog",
-      "description": "SQL alias of a pinned database. Read from the database when empty." }
+    "database": {
+      "type": "string",
+      "title": "Database",
+      "description": "Pin the project's Hotdata database id. Otherwise the first `hd load` creates one and every agent in the project finds it."
+    },
+    "project": {
+      "type": "string",
+      "title": "Project",
+      "description": "Name the project instead of letting the repository name it."
+    },
+    "read_guard": {
+      "type": "string",
+      "title": "Large-file guard",
+      "options": [
+        "on",
+        "off"
+      ],
+      "default": "on",
+      "description": "Refuse to read a large data file into context and point at `hd load` instead."
+    },
+    "guard_threshold_mb": {
+      "type": "number",
+      "title": "Guard threshold (MB)",
+      "default": 8,
+      "min": 1,
+      "max": 1024,
+      "description": "A .csv/.tsv/.parquet/.json/.jsonl over this size is refused by the guard."
+    },
+    "row_cap": {
+      "type": "number",
+      "title": "Row cap",
+      "default": 200,
+      "min": 1,
+      "max": 10000,
+      "description": "Rows `hd query` returns before it stops and suggests `hd share`."
+    },
+    "budget": {
+      "type": "number",
+      "title": "Orientation budget",
+      "default": 2500,
+      "min": 400,
+      "max": 20000,
+      "description": "Characters of orientation injected at session start."
+    },
+    "workspace": {
+      "type": "string",
+      "title": "Workspace id",
+      "description": "Leave empty to use the first workspace of the login."
+    },
+    "catalog": {
+      "type": "string",
+      "title": "Catalog",
+      "description": "SQL alias of a pinned database. Read from the database when empty."
+    }
   }
 }
