@@ -104,10 +104,7 @@ def arm_settings(arm: str, home: Path) -> dict:
     base = {
         "permissions": {
             "allow": ["Bash(hotdata query:*)", "Bash(hotdata databases:*)",
-                      "Bash(hd:*)",
-                      "Bash(memory recall:*)", "Bash(memory profile:*)",
-                      "Bash(memory list:*)", "Bash(memory remember:*)",
-                      "Bash(memory status)"],
+                      "Bash(hd:*)"],
         },
         "autoMemoryDirectory": str(home / "memory"),
     }
@@ -118,19 +115,19 @@ def arm_settings(arm: str, home: Path) -> dict:
         base["permissions"] = {"allow": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
                                "deny": ["Bash(hotdata:*)", "Bash(hd:*)"]}
         base["autoMemoryEnabled"] = False
-        base["enabledPlugins"] = {"hotdata-memory@hotdata": False, "hotdata@hotdata": False}
+        base["enabledPlugins"] = {"hotdata-tabular-memory@hotdata": False}
     elif arm in ("bare", "plugin"):
         base["autoMemoryEnabled"] = False
-        base["enabledPlugins"] = {"hotdata-memory@hotdata": False, "hotdata@hotdata": False}
+        base["enabledPlugins"] = {"hotdata-tabular-memory@hotdata": False}
     elif arm == "markdown":
         base["autoMemoryEnabled"] = True
-        base["enabledPlugins"] = {"hotdata-memory@hotdata": False}
+        base["enabledPlugins"] = {"hotdata-tabular-memory@hotdata": False}
     elif arm == "hotdata":
         base["autoMemoryEnabled"] = False
-        base["enabledPlugins"] = {"hotdata-memory@hotdata": True}
+        base["enabledPlugins"] = {"hotdata-tabular-memory@hotdata": True}
     elif arm == "none":
         base["autoMemoryEnabled"] = False
-        base["enabledPlugins"] = {"hotdata-memory@hotdata": False}
+        base["enabledPlugins"] = {"hotdata-tabular-memory@hotdata": False}
     else:
         raise SystemExit(f"unknown arm {arm!r}")
     return base

@@ -8,4 +8,5 @@ __pycache__/
 
 # Benchmark data: downloaded or generated, never committed
 swarm/data/
+bench/runs*/
 swarm/report.json

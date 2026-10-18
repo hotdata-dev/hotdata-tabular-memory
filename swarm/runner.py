@@ -146,7 +146,7 @@ def settings_for(arm: str) -> dict:
     if arm != "hotdata":
         permissions["deny"] = ["Bash(hotdata:*)", "Bash(hd:*)"]
     return {"permissions": permissions, "autoMemoryEnabled": False,
-            "enabledPlugins": {"hotdata-memory@hotdata": False, "hotdata@hotdata": False}}
+            "enabledPlugins": {"hotdata-tabular-memory@hotdata": False}}
 
 
 def hotdata(*args: str) -> str:

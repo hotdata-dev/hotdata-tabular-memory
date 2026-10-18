@@ -3,7 +3,7 @@
 # `hotdata` CLI; pytest lives in a cache outside the plugin directory, because
 # the whole directory is copied when the plugin installs.
 set -euo pipefail
-VENV="${HOTDATA_MEMORY_TEST_VENV:-$HOME/.cache/hotdata-memory/test-venv}"
+VENV="${HOTDATA_TABULAR_MEMORY_TEST_VENV:-$HOME/.cache/hotdata-tabular-memory/test-venv}"
 if [ ! -x "$VENV/bin/python" ]; then
   mkdir -p "$(dirname "$VENV")"
   python3 -m venv "$VENV"
