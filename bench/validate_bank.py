@@ -7,11 +7,13 @@ answer wrong. Any mismatch here is a bug in the bank, not in the agent.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-DB = "dbid_redacted_benchmark"
+DB = os.environ.get("BENCH_DB") or sys.exit("set BENCH_DB to the id of the taxi database")
 PREFIX = ("WITH t AS (SELECT * FROM taxi.public.trips), "
           "z AS (SELECT * FROM taxi.public.zones) ")
 

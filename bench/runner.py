@@ -21,9 +21,11 @@ import time
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-DB = "dbid_redacted_benchmark"
-MEMORY_DB = "dbid_redacted_memory"
-WORKSPACE = "work_redacted"
+# The benchmark database (taxi.public.trips and zones, built by build_bank.py) and the
+# workspace it lives in. Set these to your own before a run.
+DB = os.environ.get("BENCH_DB") or sys.exit("set BENCH_DB to the id of the taxi database")
+MEMORY_DB = os.environ.get("BENCH_MEMORY_DB", "")
+WORKSPACE = os.environ.get("BENCH_WORKSPACE") or sys.exit("set BENCH_WORKSPACE to the workspace id")
 PER_SESSION = 5
 
 BRIEF = """You are answering questions about New York yellow taxi trips for January 2024.

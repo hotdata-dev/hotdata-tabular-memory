@@ -34,6 +34,7 @@ the bank, so pass 2 repeats pass 1 exactly.
 python3 build_bank.py                  # compute the ground truth
 python3 validate_bank.py               # check Hotdata agrees
 TAG=run MODEL=claude-opus-5 SESSIONS=20 REPLICATES=2 ARMS="local plugin" \
+  export BENCH_DB=<taxi database id> BENCH_WORKSPACE=<workspace id>
   ./orchestrate.sh "$PWD/runs-myrun"   # the run
 python3 aggregate.py                   # per-arm figures -> report.json
 python3 compare.py                     # the arms side by side
