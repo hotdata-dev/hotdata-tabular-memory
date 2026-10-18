@@ -52,9 +52,6 @@ answers 97.5% of these questions unaided, so there was no accuracy headroom to r
 overlap, where the shared work is classification an agent pays to redo. In the pilot,
 agents sharing a store reused every label already recorded, but the plugin cost more
 per task than agents sharing a folder, through extra round trips rather than the store.
-The [swarm benchmark report](https://claude.ai/artifact/3NYUz6iSSUFFQw9884T1zL) has the
-results and what to fix next; [the shared database thesis](https://claude.ai/artifact/D2bUprTAGXCuiM2bT5m49p)
-is why the benchmark exists.
 
 ## What it does
 
