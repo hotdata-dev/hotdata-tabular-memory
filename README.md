@@ -11,8 +11,9 @@ the project finds it, uses the same named filters, and keeps large results on th
 /plugin install hotdata-tabular-memory@hotdata
 ```
 
-You need a Hotdata account, logged in on the machine. The first `hd load` creates the
-project's database. Nothing else to set up.
+You need a Hotdata account, logged in on the machine. If you have not set that up,
+install `hotdata-cli@hotdata` from the same marketplace first. It walks you through the
+login. The first `hd load` creates the project's database. Nothing else to set up.
 
 ## How it works
 
