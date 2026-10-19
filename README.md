@@ -85,9 +85,16 @@ active-database pointer, which is global state two agents would fight over.
 ## Install
 
 ```sh
-claude plugin marketplace add /path/to/hotdata-tabular-memory
+claude plugin marketplace add hotdata-dev/claude-plugins
 claude plugin install hotdata-tabular-memory@hotdata
 ```
+
+The plugin calls the `hotdata` CLI, so install that first (`curl -fsSL
+https://hotdata.dev/install | sh`) and run `hotdata auth login`.
+
+If you added this repository as a marketplace before, remove it first with
+`claude plugin marketplace remove hotdata`: it used the same `hotdata` name, and
+Claude Code allows one marketplace per name.
 
 Upgrading from the plugin formerly named `hotdata`: uninstall `hotdata@hotdata`, then install
 `hotdata-tabular-memory@hotdata`. Version 3.0.0 is the rename; the behaviour is 2.1.3's.
