@@ -2,7 +2,7 @@
 
 local      no Hotdata at all — the files on disk, whatever the machine has
 bare       the Hotdata CLI from a brief, no plugin
-plugin_v21 the plugin, v2.1: one database, orientation, definitions, hd batch
+plugin_v21 the plugin, v2.1: one database, orientation, definitions, tabular-memory batch
 """
 
 from __future__ import annotations

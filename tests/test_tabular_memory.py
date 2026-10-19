@@ -50,8 +50,17 @@ elif a[:3] == ["databases", "queries", "list"]:
           "sql_hash": "h1", "result_id": "rsltOLD", "row_count": 1, "snapshot_id": 6, "status": "succeeded"},
          {"id": "qrun4", "sql_text": "SELECT avg(x) FROM t", "sql_hash": "h3", "result_id": "rsltC",
           "row_count": 1, "snapshot_id": 7, "status": "failed", "error_message": "boom"},
-         {"id": "qrun5", "sql_text": "/* hd:internal */ SELECT count(*) AS n FROM taxi.public.trips",
+         {"id": "qrun5", "sql_text": "/* tabular-memory:internal */ SELECT count(*) AS n FROM taxi.public.trips",
           "sql_hash": "h4", "result_id": "rsltHK", "row_count": 1, "snapshot_id": 7, "status": "succeeded"}])
+elif a[:2] == ["auth", "status"]:
+    if __import__("os").environ.get("FAKE_AUTH_BROKEN"):
+        print("error: could not reach https://api.hotdata.dev", file=sys.stderr); sys.exit(1)
+    ok = "No" if __import__("os").environ.get("FAKE_LOGGED_OUT") else "Yes"
+    print(f"\x1b[38;5;8mAuthenticated:  \x1b[0m{ok}")
+elif a == ["--version"]:
+    print("hotdata 0.43.0")
+elif a[:3] == ["databases", "tables", "remove"]:
+    pass
 elif a[:2] == ["workspaces", "list"]:
     out([{"public_id": "workfake", "name": "W"}])
 elif a[0] == "query":
@@ -102,6 +111,8 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", f"{fake}:{os.environ['PATH']}")
     monkeypatch.setenv("FAKE_LOG", str(tmp_path / "calls.log"))
     monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path / "data"))
+    (tmp_path / "data").mkdir()
+    (tmp_path / "data" / "ready").write_text("ok\n")  # onboarding tests remove it
     monkeypatch.setenv("HOTDATA_API_KEY", "fake")
     monkeypatch.setenv("CLAUDE_PLUGIN_OPTION_WORKSPACE", "workfake")
     repo = tmp_path / "my-repo"
@@ -115,8 +126,8 @@ def calls(env) -> list[str]:
     return log.read_text().splitlines() if log.exists() else []
 
 
-def hd(args, env, extra=None):
-    return subprocess.run([sys.executable, str(SCRIPTS / "hd.py"), *args],
+def cli(args, env, extra=None):
+    return subprocess.run([sys.executable, str(SCRIPTS / "tabular_memory.py"), *args],
                           capture_output=True, text=True,
                           env={**os.environ, **(extra or {}), "PYTHONPATH": str(SCRIPTS)})
 
@@ -244,7 +255,7 @@ def test_a_query_is_classified_by_what_it_would_bring_back(sql, kind):
 
 def test_rows_over_the_cap_are_cut_with_a_footer():
     rows, footer = discipline.trim([[i] for i in range(50)], 50, 10)
-    assert len(rows) == 10 and "10 of 50" in footer and "hd share" in footer
+    assert len(rows) == 10 and "10 of 50" in footer and "tabular-memory share" in footer
     rows, footer = discipline.trim([[1]], 1, 10)
     assert footer == ""
 
@@ -263,7 +274,7 @@ def test_reading_a_large_data_file_is_refused_with_the_load_command(env):
     out = hook("guard", {"tool_name": "Read", "tool_input": {"file_path": str(path)}})
     decision = out["hookSpecificOutput"]
     assert decision["permissionDecision"] == "deny"
-    assert f"hd load {path}" in decision["permissionDecisionReason"]
+    assert f"tabular-memory load {path}" in decision["permissionDecisionReason"]
     assert "20MB" in decision["permissionDecisionReason"]
 
 
@@ -293,7 +304,7 @@ def test_a_bash_loader_with_no_path_only_gets_a_nudge(env):
     cmd = "python3 -c \"import pandas as pd; df = pd.read_csv(io.StringIO(s))\""
     out = hook("guard", {"tool_name": "Bash", "tool_input": {"command": cmd}})
     assert "permissionDecision" not in out.get("hookSpecificOutput", {})
-    assert "hd load" in out["hookSpecificOutput"]["additionalContext"]
+    assert "tabular-memory load" in out["hookSpecificOutput"]["additionalContext"]
 
 
 def test_the_threshold_is_configurable(env):
@@ -321,7 +332,7 @@ def test_orientation_carries_tables_columns_definitions_and_dialect(env):
     assert "fare_amount:Float64" in text
     assert "{{clean_set}}" in text
     assert "date_diff" in text
-    assert "hd query" in text
+    assert "tabular-memory query" in text
 
 
 def test_the_second_session_reads_the_cache(env):
@@ -334,13 +345,13 @@ def test_the_second_session_reads_the_cache(env):
     assert len([c for c in calls(env)[before:] if c.startswith("query")]) == 0 or True
 
 
-# --------------------------------------------------------------------------- hd
+# --------------------------------------------------------------------------- tabular-memory
 
 
 def test_load_creates_the_database_and_prints_orientation(env):
     f = env / "trips.csv"
     f.write_text("a,b\n1,2\n")
-    out = hd(["load", str(f)], env)
+    out = cli(["load", str(f)], env)
     assert out.returncode == 0, out.stderr
     assert "loaded trips.csv" in out.stdout and "trips (2,869,585 rows)" in out.stdout
     assert any("tables load trips --database" in c for c in calls(env))
@@ -348,22 +359,22 @@ def test_load_creates_the_database_and_prints_orientation(env):
 
 def test_an_unbounded_query_is_refused(env):
     project.project_database(create=True)
-    out = hd(["query", "SELECT * FROM taxi.public.trips"], env)
+    out = cli(["query", "SELECT * FROM taxi.public.trips"], env)
     assert out.returncode == 2
-    assert "hd share" in out.stderr
+    assert "tabular-memory share" in out.stderr
 
 
 def test_a_short_list_without_a_limit_is_shown_not_refused(env):
     """The cap protects context from a scan; 150 ids are not a scan."""
     project.project_database(create=True)
-    out = hd(["query", "SELECT complaint_id FROM short_list"], env)
+    out = cli(["query", "SELECT complaint_id FROM short_list"], env)
     assert out.returncode == 0, out.stderr
     assert out.stdout.count("\n") == 151
 
 
 def test_an_unquoted_uppercase_column_is_fixed_from_the_engines_suggestion(env):
     project.project_database(create=True)
-    out = hd(["query", "SELECT count(*) FROM taxi.public.trips t WHERE t.PULocationID = 132"], env)
+    out = cli(["query", "SELECT count(*) FROM taxi.public.trips t WHERE t.PULocationID = 132"], env)
     assert out.returncode == 0, out.stderr
     assert '"PULocationID"' in out.stdout and "2869585" in out.stdout
     assert any('t."PULocationID" = 132' in c for c in calls(env))
@@ -371,7 +382,7 @@ def test_an_unquoted_uppercase_column_is_fixed_from_the_engines_suggestion(env):
 
 def test_out_writes_every_row_to_a_file_and_prints_only_a_summary(env):
     project.project_database(create=True)
-    out = hd(["query", "SELECT x FROM t", "--out", "rows.csv"], env)
+    out = cli(["query", "SELECT x FROM t", "--out", "rows.csv"], env)
     assert out.returncode == 0, out.stderr
     assert "wrote 3 rows to rows.csv" in out.stdout
     assert Path("rows.csv").read_text() == "x\n1\n2\n3\n"
@@ -379,14 +390,14 @@ def test_out_writes_every_row_to_a_file_and_prints_only_a_summary(env):
 
 def test_format_json_prints_one_object_per_row(env):
     project.project_database(create=True)
-    out = hd(["query", "SELECT fare_amount, PULocationID FROM t LIMIT 2", "--format", "json"], env)
+    out = cli(["query", "SELECT fare_amount, PULocationID FROM t LIMIT 2", "--format", "json"], env)
     assert out.returncode == 0, out.stderr
     assert json.loads(out.stdout)[0] == {"fare_amount": 10.5, "PULocationID": 132}
 
 
 def test_a_capped_query_is_cut_with_a_footer(env):
     project.project_database(create=True)
-    out = hd(["query", "SELECT a, b FROM t LIMIT 500"], env, {"CLAUDE_PLUGIN_OPTION_ROW_CAP": "20"})
+    out = cli(["query", "SELECT a, b FROM t LIMIT 500"], env, {"CLAUDE_PLUGIN_OPTION_ROW_CAP": "20"})
     assert out.returncode == 0, out.stderr
     assert out.stdout.count("\n") >= 21 and "20 of 500" in out.stdout
 
@@ -394,7 +405,7 @@ def test_a_capped_query_is_cut_with_a_footer(env):
 def test_a_definition_expands_before_the_query_runs(env):
     project.project_database(create=True)
     seed_defs(env, clean_set="SELECT * FROM taxi.public.trips WHERE fare_amount > 0")
-    out = hd(["query", "SELECT count(*) FROM {{clean_set}}"], env)
+    out = cli(["query", "SELECT count(*) FROM {{clean_set}}"], env)
     assert out.returncode == 0, out.stderr
     assert "2869585" in out.stdout
     sent = [c for c in calls(env) if c.startswith("query")][-1]
@@ -403,7 +414,7 @@ def test_a_definition_expands_before_the_query_runs(env):
 
 def test_share_materialises_from_the_result_id(env):
     project.project_database(create=True)
-    out = hd(["share", "pairs", "SELECT a, b FROM t LIMIT 500"], env)
+    out = cli(["share", "pairs", "SELECT a, b FROM t LIMIT 500"], env)
     assert out.returncode == 0, out.stderr
     assert "500 rows, on the server" in out.stdout
     assert any("tables load pairs --database" in c and "--result-id rslt2" in c for c in calls(env))
@@ -411,7 +422,7 @@ def test_share_materialises_from_the_result_id(env):
 
 def test_fork_prints_the_snapshot_and_records_it(env):
     project.project_database(create=True)
-    out = hd(["fork", "--name", "exp"], env)
+    out = cli(["fork", "--name", "exp"], env)
     assert out.returncode == 0, out.stderr
     assert "snapshot 645838" in out.stdout
     assert json.loads(project.registry_path().read_text())["my_repo"]["forks"][0]["snapshot_id"] == 645838
@@ -420,15 +431,15 @@ def test_fork_prints_the_snapshot_and_records_it(env):
 def test_a_cli_failure_is_a_message_not_a_trace(env):
     project.project_database(create=True)
     seed_defs(env)  # an empty, cached set: the lookup must not reach the network
-    out = hd(["query", "SELECT count(*) FROM {{missing}}"], env)
+    out = cli(["query", "SELECT count(*) FROM {{missing}}"], env)
     assert out.returncode == 1
-    assert "hd: no definition named 'missing'" in out.stderr
+    assert "tabular-memory: no definition named 'missing'" in out.stderr
     assert "Traceback" not in out.stderr
 
 
 def test_status_with_no_database_says_how_to_get_one(env):
-    out = hd(["status"], env)
-    assert "hd load <file>" in out.stdout
+    out = cli(["status"], env)
+    assert "tabular-memory load <file>" in out.stdout
 
 
 def test_another_projects_definitions_are_not_visible(env, monkeypatch):
@@ -453,7 +464,7 @@ def test_a_definition_that_is_only_a_where_clause_is_refused_with_the_shape(env,
     with pytest.raises(hotdata.HotdataError) as err:
         defs.define("my_repo", "clean_set", "fare_amount > 0 AND trip_distance > 0")
     assert "whole SELECT" in str(err.value)
-    assert 'hd define clean_set "SELECT * FROM' in str(err.value)
+    assert 'tabular-memory define clean_set "SELECT * FROM' in str(err.value)
 
 
 def test_a_cte_counts_as_a_select(env, monkeypatch):
@@ -468,7 +479,7 @@ def test_a_cte_counts_as_a_select(env, monkeypatch):
 
 def test_batch_runs_every_query_and_labels_each_result(env):
     project.project_database(create=True)
-    out = hd(["batch", "rows: SELECT count(*) FROM t", "top: SELECT a, b FROM t LIMIT 3"], env)
+    out = cli(["batch", "rows: SELECT count(*) FROM t", "top: SELECT a, b FROM t LIMIT 3"], env)
     assert out.returncode == 0, out.stderr
     assert "== rows ==" in out.stdout and "2869585" in out.stdout
     assert "== top ==" in out.stdout
@@ -478,7 +489,7 @@ def test_batch_runs_every_query_and_labels_each_result(env):
 def test_batch_reads_a_script_from_stdin_with_name_comments(env):
     project.project_database(create=True)
     script = "-- total\nSELECT count(*) FROM t;\n-- sample\nSELECT a, b\nFROM t LIMIT 3;\n"
-    out = subprocess.run([sys.executable, str(SCRIPTS / "hd.py"), "batch"], input=script,
+    out = subprocess.run([sys.executable, str(SCRIPTS / "tabular_memory.py"), "batch"], input=script,
                          capture_output=True, text=True,
                          env={**os.environ, "PYTHONPATH": str(SCRIPTS)})
     assert out.returncode == 0, out.stderr
@@ -488,7 +499,7 @@ def test_batch_reads_a_script_from_stdin_with_name_comments(env):
 def test_one_refused_query_does_not_discard_the_answers_beside_it(env):
     """A non-zero exit reads as total failure, and an agent throws the batch away."""
     project.project_database(create=True)
-    out = hd(["batch", "bad: SELECT * FROM t", "good: SELECT count(*) FROM t"], env)
+    out = cli(["batch", "bad: SELECT * FROM t", "good: SELECT count(*) FROM t"], env)
     assert out.returncode == 0, out.stderr
     assert "== bad ==" in out.stdout and "refused" in out.stdout
     assert "== good ==" in out.stdout and "2869585" in out.stdout
@@ -496,13 +507,13 @@ def test_one_refused_query_does_not_discard_the_answers_beside_it(env):
 
 def test_a_batch_where_everything_failed_does_exit_non_zero(env):
     project.project_database(create=True)
-    out = hd(["batch", "a: SELECT * FROM t", "b: SELECT * FROM taxi.public.trips"], env)
+    out = cli(["batch", "a: SELECT * FROM t", "b: SELECT * FROM taxi.public.trips"], env)
     assert out.returncode == 2
     assert "every query failed" in out.stderr
 
 
 def test_batch_labels_unlabelled_queries_by_position(env):
-    assert [l for l, _ in __import__("hd").split_batch(["SELECT 1", "x: SELECT 2"], "")] == ["q1", "x"]
+    assert [l for l, _ in __import__("tabular_memory").split_batch(["SELECT 1", "x: SELECT 2"], "")] == ["q1", "x"]
 
 
 # ------------------------------------------------------------- orientation extras
@@ -531,7 +542,7 @@ def test_orientation_shows_time_ranges(env):
 
 
 def test_load_hands_a_url_to_the_server(env):
-    out = hd(["load", "https://example.com/data/trips.parquet?x=1"], env)
+    out = cli(["load", "https://example.com/data/trips.parquet?x=1"], env)
     assert out.returncode == 0, out.stderr
     assert "fetched by the server" in out.stdout
     sent = [c for c in calls(env) if "tables load trips" in c][0]
@@ -541,7 +552,7 @@ def test_load_hands_a_url_to_the_server(env):
 def test_a_missing_table_error_names_what_exists(env):
     project.project_database(create=True)
     seed_defs(env, clean_set="SELECT 1")
-    out = hd(["query", "SELECT count(*) FROM nope"], env)
+    out = cli(["query", "SELECT count(*) FROM nope"], env)
     assert out.returncode == 1
     assert "not found" in out.stderr
     assert "tables here: my_repo.public.trips" in out.stderr
@@ -550,7 +561,7 @@ def test_a_missing_table_error_names_what_exists(env):
 
 def test_batch_with_arguments_never_touches_stdin(env, monkeypatch):
     """An agent's shell keeps stdin open; reading it would hang forever."""
-    import hd, io
+    import tabular_memory, io
     project.project_database(create=True)
     seed_defs(env)
 
@@ -561,7 +572,7 @@ def test_batch_with_arguments_never_touches_stdin(env, monkeypatch):
             return False
     monkeypatch.setattr(sys, "stdin", Hanging())
     monkeypatch.chdir(env / "my-repo")
-    assert hd.main(["batch", "n: SELECT count(*) FROM t"]) == 0
+    assert tabular_memory.main(["batch", "n: SELECT count(*) FROM t"]) == 0
 
 
 def test_a_definition_keeps_the_alias_the_agent_wrote(env):
@@ -577,7 +588,7 @@ def test_a_definition_keeps_the_alias_the_agent_wrote(env):
 
 def test_share_can_materialise_a_stored_result_by_id(env):
     project.project_database(create=True)
-    out = hd(["share", "again", "--result-id", "rsltA"], env)
+    out = cli(["share", "again", "--result-id", "rsltA"], env)
     assert out.returncode == 0, out.stderr
     assert any("tables load again --database" in c and "--result-id rsltA" in c for c in calls(env))
     assert not any(c.startswith("query") and "rsltA" in c for c in calls(env))
@@ -586,6 +597,119 @@ def test_share_can_materialise_a_stored_result_by_id(env):
 def test_the_plugins_own_reads_are_marked_so_they_never_look_like_answers(env):
     project.project_database(create=True)
     hook("session_start", {"cwd": str(env / "my-repo")})
-    own = [c for c in calls(env) if c.startswith("query") and "hd:internal" in c]
-    other = [c for c in calls(env) if c.startswith("query") and "hd:internal" not in c]
+    own = [c for c in calls(env) if c.startswith("query") and "tabular-memory:internal" in c]
+    other = [c for c in calls(env) if c.startswith("query") and "tabular-memory:internal" not in c]
     assert own and not other
+
+
+# -------------------------------------------------------------------- onboarding
+
+
+def fresh(env):
+    """A machine that has never run a session with the plugin."""
+    (env / "data" / "ready").unlink()
+
+
+def test_a_missing_cli_is_reported_to_the_user_with_the_install_command(env):
+    fresh(env)
+    out = hook("session_start", {"cwd": str(env / "my-repo")},
+               {"PATH": str(Path(sys.executable).parent)})
+    assert "hotdata.dev/install" in out["systemMessage"]
+    assert "cannot run yet" in out["hookSpecificOutput"]["additionalContext"]
+    assert not (env / "data" / "ready").exists()
+
+
+def test_a_logged_out_cli_is_reported_with_the_login_command(env):
+    fresh(env)
+    out = hook("session_start", {"cwd": str(env / "my-repo")}, {"FAKE_LOGGED_OUT": "1"})
+    assert "! hotdata auth login" in out["systemMessage"]
+    assert not (env / "data" / "ready").exists()
+
+
+def test_a_failed_login_check_blocks_nothing_and_is_tried_again(env):
+    fresh(env)
+    project.project_database(create=True)
+    out = hook("session_start", {"cwd": str(env / "my-repo")}, {"FAKE_AUTH_BROKEN": "1"})
+    assert "systemMessage" not in out
+    assert DB in out["hookSpecificOutput"]["additionalContext"]
+    assert not (env / "data" / "ready").exists()
+
+
+def test_doctor_reports_a_failed_login_check_as_unknown_not_logged_out(env):
+    out = cli(["doctor"], env, {"FAKE_AUTH_BROKEN": "1"})
+    assert out.returncode == 1
+    assert "could not check the login" in out.stdout and "auth login" not in out.stdout
+
+
+def test_the_first_ready_session_says_hello_once(env):
+    fresh(env)
+    out = hook("session_start", {"cwd": str(env / "my-repo")})
+    assert "tabular-memory demo" in out["systemMessage"]
+    assert (env / "data" / "ready").exists()
+    assert hook("session_start", {"cwd": str(env / "my-repo")}) == {}
+    assert len([c for c in calls(env) if c.startswith("auth status")]) == 1
+
+
+def test_a_ready_machine_does_not_ask_the_cli_about_login(env):
+    hook("session_start", {"cwd": str(env / "my-repo")})
+    assert not [c for c in calls(env) if c.startswith("auth")]
+
+
+def test_large_data_files_not_yet_loaded_are_named_at_session_start(env):
+    data = env / "my-repo" / "data"
+    data.mkdir()
+    (data / "trips.parquet").write_bytes(b"x" * 12 * 1024 * 1024)
+    (data / "small.csv").write_text("a\n1\n")
+    deps = env / "my-repo" / "node_modules"
+    deps.mkdir()
+    (deps / "huge.csv").write_bytes(b"x" * 12 * 1024 * 1024)
+    text = hook("session_start", {"cwd": str(env / "my-repo")})["hookSpecificOutput"]["additionalContext"]
+    assert "tabular-memory load data/trips.parquet" in text and "12MB" in text
+    assert "small.csv" not in text and "huge.csv" not in text
+
+
+def test_a_hinted_path_with_a_space_is_quoted(env):
+    (env / "my-repo" / "my trips.csv").write_bytes(b"x" * 12 * 1024 * 1024)
+    text = hook("session_start", {"cwd": str(env / "my-repo")})["hookSpecificOutput"]["additionalContext"]
+    assert "tabular-memory load 'my trips.csv'" in text
+
+
+def test_a_project_with_a_database_gets_orientation_not_the_file_hint(env):
+    (env / "my-repo" / "trips.parquet").write_bytes(b"x" * 12 * 1024 * 1024)
+    project.project_database(create=True)
+    text = hook("session_start", {"cwd": str(env / "my-repo")})["hookSpecificOutput"]["additionalContext"]
+    assert "not yet in Hotdata" not in text and DB in text
+
+
+def test_doctor_passes_on_a_working_setup(env):
+    out = cli(["doctor"], env)
+    assert out.returncode == 0, out.stdout + out.stderr
+    assert "hotdata 0.43.0 installed" in out.stdout and "logged in" in out.stdout
+    assert "no database yet" in out.stdout and "ready." in out.stdout
+
+
+def test_doctor_stops_at_login_and_names_the_fix(env):
+    out = cli(["doctor"], env, {"FAKE_LOGGED_OUT": "1"})
+    assert out.returncode == 1
+    assert "FAIL  not logged in" in out.stdout and "! hotdata auth login" in out.stdout
+    assert "workspace" not in out.stdout
+
+
+def test_doctor_without_the_cli_says_how_to_install_it(env):
+    out = cli(["doctor"], env, {"PATH": str(Path(sys.executable).parent)})
+    assert out.returncode == 1 and "hotdata.dev/install" in out.stdout
+
+
+def test_demo_loads_the_sample_by_url_and_suggests_questions(env):
+    out = cli(["demo"], env)
+    assert out.returncode == 0, out.stderr
+    load = [c for c in calls(env) if c.startswith("databases tables load nyc_taxi_demo")]
+    assert load and "--url https://" in load[0]
+    assert "clean_trips" in out.stdout and "demo --remove" in out.stdout
+
+
+def test_demo_remove_drops_the_table(env):
+    project.project_database(create=True)
+    out = cli(["demo", "--remove"], env)
+    assert out.returncode == 0, out.stderr
+    assert any(c.startswith("databases tables remove nyc_taxi_demo") for c in calls(env))

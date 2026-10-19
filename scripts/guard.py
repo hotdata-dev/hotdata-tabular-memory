@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -47,9 +48,9 @@ def reason(path: Path, size: int) -> str:
                 f"lines")
     return (f"{path.name} is {mb:.0f}MB. Read into context that is {cost} tell you nothing a "
             f"query would not. Load it into Hotdata and query it there:\n\n"
-            f"  hd load {path}\n\n"
+            f"  tabular-memory load {shlex.quote(str(path))}\n\n"
             f"That takes a few seconds, prints the schema and a sample, and after it every "
-            f"question is one `hd query \"<sql>\"` that returns an answer, not the table. "
+            f"question is one `tabular-memory query \"<sql>\"` that returns an answer, not the table. "
             f"Set the plugin option read_guard=off to read the file anyway.")
 
 
@@ -92,7 +93,7 @@ def main() -> int:
                     deny(reason(*large))
                 elif not named:
                     nudge("This looks like a local data load. For a file over a few MB, "
-                          "`hd load <file>` puts it in Hotdata in seconds and every question "
+                          "`tabular-memory load <file>` puts it in Hotdata in seconds and every question "
                           "after that is a query that returns an answer, not the table.")
     except Exception:  # a guard failure must never block a tool call
         pass

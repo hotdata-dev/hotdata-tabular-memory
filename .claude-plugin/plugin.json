@@ -1,7 +1,7 @@
 {
   "name": "hotdata-tabular-memory",
   "displayName": "Hotdata Tabular Memory",
-  "version": "3.0.0",
+  "version": "4.0.0",
   "description": "Makes Hotdata the default database when a Claude agent meets data too big for its context: one database per project, definitions every agent shares, results that stay on the server.",
   "author": {
     "name": "Eddie",
@@ -20,7 +20,7 @@
     "database": {
       "type": "string",
       "title": "Database",
-      "description": "Pin the project's Hotdata database id. Otherwise the first `hd load` creates one and every agent in the project finds it."
+      "description": "Pin the project's Hotdata database id. Otherwise the first `tabular-memory load` creates one and every agent in the project finds it."
     },
     "project": {
       "type": "string",
@@ -35,7 +35,7 @@
         "off"
       ],
       "default": "on",
-      "description": "Refuse to read a large data file into context and point at `hd load` instead."
+      "description": "Refuse to read a large data file into context and point at `tabular-memory load` instead."
     },
     "guard_threshold_mb": {
       "type": "number",
@@ -51,7 +51,7 @@
       "default": 200,
       "min": 1,
       "max": 10000,
-      "description": "Rows `hd query` returns before it stops and suggests `hd share`."
+      "description": "Rows `tabular-memory query` returns before it stops and suggests `tabular-memory share`."
     },
     "budget": {
       "type": "number",

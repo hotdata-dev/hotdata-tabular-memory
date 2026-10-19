@@ -34,7 +34,7 @@ def recent_results(database: str) -> list[str]:
         status = str(r.get("status") or "").lower()
         if (any(w in status for w in ("fail", "error", "cancel")) or r.get("error_message")
                 or not sql or not r.get("result_id") or ORIENTISH.search(sql)
-                or "hd:internal" in sql or r.get("sql_hash") in seen):
+                or "tabular-memory:internal" in sql or r.get("sql_hash") in seen):
             continue
         seen.add(r.get("sql_hash"))
         lines.append(f"  {r['result_id']}  ({r.get('row_count', '?')} rows)  {sql[:88]}")
@@ -45,7 +45,7 @@ def recent_results(database: str) -> list[str]:
 
 DIALECT = """Dialect (Apache DataFusion): no date_diff() or hour() — use EXTRACT(EPOCH FROM (b - a))
 for seconds and EXTRACT(HOUR FROM ts); quote uppercase identifiers ("PULocationID");
-median() works; no DDL. Results are capped: aggregate, or `hd share <table> "<sql>"` to
+median() works; no DDL. Results are capped: aggregate, or `tabular-memory share <table> "<sql>"` to
 keep rows on the server."""
 
 
@@ -54,7 +54,7 @@ def block(entry: dict, budget: int) -> str:
     database, catalog = entry["database"], entry["catalog"]
     lines = [
         f"Hotdata database for this project: {database} (catalog `{catalog}`).",
-        f"Query it with  hd query \"<sql>\"  — tables are {catalog}.public.<table>. "
+        f"Query it with  tabular-memory query \"<sql>\"  — tables are {catalog}.public.<table>. "
         f"In SQL, {{{{name}}}} expands to a definition below.",
         "",
     ]
@@ -72,7 +72,7 @@ def block(entry: dict, budget: int) -> str:
     if recent:
         lines.append("Already computed in this project, newest first. If the tables it read "
                      "have not changed since, reuse the result instead of re-running it: "
-                     "hd share <table> --result-id <id>")
+                     "tabular-memory share <table> --result-id <id>")
         lines.extend(recent)
         lines.append("")
     for table in hotdata.tables(database, catalog):

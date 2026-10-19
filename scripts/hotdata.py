@@ -46,7 +46,9 @@ def run(args: Sequence[str], timeout: int = TIMEOUT) -> str:
             timeout=timeout, env=credentials(),
         )
     except FileNotFoundError:
-        raise HotdataError("the `hotdata` CLI is not on PATH") from None
+        raise HotdataError("the `hotdata` CLI is not on PATH: install it with "
+                          "`curl -fsSL https://hotdata.dev/install | sh`, then "
+                          "`hotdata auth login`") from None
     except subprocess.SubprocessError as error:
         raise HotdataError(str(error)) from None
     if done.returncode not in (0, 3):  # 3 is an incomplete preview, not a failure
@@ -87,7 +89,7 @@ def quote(value: str) -> str:
 # ----------------------------------------------------------------------- queries
 
 
-HOUSEKEEPING = "/* hd:internal */ "
+HOUSEKEEPING = "/* tabular-memory:internal */ "
 
 
 def internal(sql: str) -> str:
