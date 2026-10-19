@@ -2,7 +2,7 @@
 
 The CLI caps a preview at 10,000 rows, which is a human limit. An agent's is lower,
 and an unbounded scan is refused outright: the right move is to aggregate, or to
-materialise the result as a table with `hd share` and query that.
+materialise the result as a table with `tabular-memory share` and query that.
 """
 
 from __future__ import annotations
@@ -37,8 +37,8 @@ def refusal(sql: str, cap: int, total: int = 0) -> str:
     size = f" It matches {total:,} rows." if total else ""
     return (f"refused: this is {what}, which would pull every matching row into context.{size}\n"
             f"Aggregate it, add `LIMIT {cap}`, or keep the rows out of context:\n"
-            f"  hd share <table> \"<the query>\"     # materialise it, then query the table\n"
-            f"  hd query \"<the query>\" --out rows.csv   # every row to a file\n"
+            f"  tabular-memory share <table> \"<the query>\"     # materialise it, then query the table\n"
+            f"  tabular-memory query \"<the query>\" --out rows.csv   # every row to a file\n"
             f"Pass --all to stream the whole result anyway.")
 
 
@@ -48,4 +48,4 @@ def trim(rows: list[list], total: int, cap: int) -> tuple[list[list], str]:
         return rows, ""
     shown = rows[:cap]
     return shown, (f"\n{len(shown)} of {total} rows — the rest stayed on the server. "
-                   f"Aggregate, or `hd share <table> \"<sql>\"` to materialise.")
+                   f"Aggregate, or `tabular-memory share <table> \"<sql>\"` to materialise.")

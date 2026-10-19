@@ -43,7 +43,7 @@ outside what it tests.
 
 **The gain depends on the model batching.** Repeating the run on Haiku 5.5 cut turns by
 2% and tokens by 13%, against 32% and 30% on Opus 5, and lost 1.5 points of accuracy.
-Haiku 5.5 calls `hd batch` as often as Opus in absolute terms but makes 70% more calls
+Haiku 5.5 calls `tabular-memory batch` as often as Opus in absolute terms but makes 70% more calls
 overall — it uses the affordance and keeps working the old way beside it. It also
 answers 97.5% of these questions unaided, so there was no accuracy headroom to recover.
 `bench/README.md` has the figures.
@@ -57,13 +57,15 @@ per task than agents sharing a folder, through extra round trips rather than the
 
 | Piece | What happens |
 | :- | :- |
-| `hd load <file>` | the file becomes a table in the project's database, created on first use |
-| `hd query "<sql>"` | `{{name}}` expands to a definition; an unbounded scan is refused; rows over the cap stay on the server |
-| `hd define <name> "<sql>"` | a filter or derived set every agent in the project shares, versioned |
-| `hd share <table> "<sql>"` | a query result becomes a table without a row entering anyone's context |
-| `hd fork` / `hd attach` | an isolated copy to experiment in; another database's tables made visible here |
-| SessionStart hook | the database, its tables, a sample, the definitions and the dialect notes, from a cache, in ~40ms |
-| PreToolUse guard | reading a data file over 8MB into context is refused, with the `hd load` command in the refusal |
+| `tabular-memory load <file>` | the file becomes a table in the project's database, created on first use |
+| `tabular-memory query "<sql>"` | `{{name}}` expands to a definition; an unbounded scan is refused; rows over the cap stay on the server |
+| `tabular-memory define <name> "<sql>"` | a filter or derived set every agent in the project shares, versioned |
+| `tabular-memory share <table> "<sql>"` | a query result becomes a table without a row entering anyone's context |
+| `tabular-memory fork` / `tabular-memory attach` | an isolated copy to experiment in; another database's tables made visible here |
+| `tabular-memory doctor` | checks the CLI, login, workspace and project database, and prints the fix for each failure |
+| `tabular-memory demo` | loads a public 2.9M-row sample by URL and suggests three questions to ask Claude |
+| SessionStart hook | the database, its tables, a sample, the definitions and the dialect notes, from a cache, in ~40ms; with no database yet, the project's data files too big to read |
+| PreToolUse guard | reading a data file over 8MB into context is refused, with the `tabular-memory load` command in the refusal |
 
 The guard is a refusal rather than advice because the benchmark found that refusals held
 and instructions did not.
@@ -92,6 +94,18 @@ claude plugin install hotdata-tabular-memory@hotdata
 The plugin calls the `hotdata` CLI, so install that first (`curl -fsSL
 https://hotdata.dev/install | sh`) and run `hotdata auth login`.
 
+### First run
+
+1. Start a Claude Code session. If the `hotdata` CLI is missing or not logged in, the
+   session says so and gives the command to fix it. Nothing else runs until it is fixed.
+2. When everything works, the session says hello once and stays quiet after that.
+3. Ask Claude to run `tabular-memory demo`. It loads NYC taxi trips (48MB, 2.9M rows)
+   in a few seconds and suggests three questions. Remove it with `tabular-memory demo --remove`.
+4. In your own project, Claude sees the data files too big to read and loads them
+   before it answers questions about them.
+
+If something stops working, `tabular-memory doctor` says what and how to fix it.
+
 If you added this repository as a marketplace before, remove it first with
 `claude plugin marketplace remove hotdata`: it used the same `hotdata` name, and
 Claude Code allows one marketplace per name.
@@ -99,7 +113,7 @@ Claude Code allows one marketplace per name.
 Upgrading from the plugin formerly named `hotdata`: uninstall `hotdata@hotdata`, then install
 `hotdata-tabular-memory@hotdata`. Version 3.0.0 is the rename; the behaviour is 2.1.3's.
 
-That is enough: the first `hd load` creates the project's database. To point a project
+That is enough: the first `tabular-memory load` creates the project's database. To point a project
 at a database that already exists, `--config database=<id>`.
 
 To stop Claude asking before every read, add the read-only commands to
@@ -107,21 +121,21 @@ To stop Claude asking before every read, add the read-only commands to
 `fork` and `attach` out so a change still asks:
 
 ```json
-"allow": ["Bash(hd query:*)", "Bash(hd defs)", "Bash(hd status)", "Bash(hd orient:*)"]
+"allow": ["Bash(tabular-memory query:*)", "Bash(tabular-memory defs)", "Bash(tabular-memory status)", "Bash(tabular-memory orient:*)"]
 ```
 
 A plugin with a top-level `bin/` is not installable on claude.ai or Cowork; call
-`scripts/hd.py` directly there.
+`scripts/tabular_memory.py` directly there.
 
 ## Configuration
 
 | Option | Default | |
 | :- | :- | :- |
-| `database` | — | pin the project's database id; otherwise the first `hd load` creates one |
+| `database` | — | pin the project's database id; otherwise the first `tabular-memory load` creates one |
 | `project` | repository name | name the project yourself |
 | `read_guard` | `on` | `off` lets a large data file be read |
 | `guard_threshold_mb` | `8` | size above which `.csv .tsv .parquet .json .jsonl` are refused |
-| `row_cap` | `200` | rows `hd query` returns before stopping |
+| `row_cap` | `200` | rows `tabular-memory query` returns before stopping |
 | `budget` | `2500` | characters of orientation at session start |
 | `workspace` | first of the login | workspace id for the saved-query API |
 | `catalog` | read from the database | SQL alias of a pinned database |

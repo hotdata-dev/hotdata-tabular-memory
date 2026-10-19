@@ -1,10 +1,12 @@
-"""hd: the Hotdata command for agents. One database per project; nothing into context.
+"""tabular-memory: the Hotdata command for agents. One database per project; nothing into context.
 
-    hd load <file>            the file becomes a table; prints the orientation
-    hd query "<sql>"          answer a question; {{name}} expands to a definition
-    hd define <name> "<sql>"  a filter or derived set every agent shares
-    hd share <table> "<sql>"  keep a result on the server as a table
-    hd fork / attach / defs / status / orient
+    tabular-memory load <file>            the file becomes a table; prints the orientation
+    tabular-memory query "<sql>"          answer a question; {{name}} expands to a definition
+    tabular-memory define <name> "<sql>"  a filter or derived set every agent shares
+    tabular-memory share <table> "<sql>"  keep a result on the server as a table
+    tabular-memory fork / attach / defs / status / orient
+    tabular-memory doctor                 check the setup, and say how to fix what fails
+    tabular-memory demo                   load a public sample and suggest questions to ask
 """
 
 from __future__ import annotations
@@ -24,13 +26,14 @@ import discipline
 import hotdata
 import orient
 import project
+import setup
 from hotdata import HotdataError
 
 
 def entry(create: bool = False) -> dict:
     found = project.project_database(os.getcwd(), create=create)
     if not found:
-        raise HotdataError("this project has no database yet: `hd load <file>` makes one")
+        raise HotdataError("this project has no database yet: `tabular-memory load <file>` makes one")
     return found
 
 
@@ -246,7 +249,7 @@ def cmd_define(args) -> int:
 def cmd_defs(args) -> int:
     found = defs.all_definitions(entry()["project"], refresh=True)
     if not found:
-        print("no definitions yet: hd define <name> \"<sql>\" --description \"...\"")
+        print("no definitions yet: tabular-memory define <name> \"<sql>\" --description \"...\"")
         return 0
     for name, d in sorted(found.items()):
         print(f"{{{{{name}}}}} v{d['version']}  {d.get('description') or ''}")
@@ -304,7 +307,8 @@ def cmd_status(args) -> int:
     e = project.project_database(os.getcwd())
     print(f"project:   {project.project_label(os.getcwd())}")
     if not e:
-        print("database:  none yet — `hd load <file>` creates one")
+        print("database:  none yet — `tabular-memory load <file>` creates one, "
+              "or `tabular-memory demo` loads a sample")
         return 0
     print(f"database:  {e['database']}  (catalog {e['catalog']})")
     print(f"guard:     {project.option('read_guard', 'on')}, "
@@ -329,8 +333,45 @@ def cmd_orient(args) -> int:
     return 0
 
 
+def cmd_doctor(args) -> int:
+    results = setup.checks(os.getcwd())
+    for ok, what, fix in results:
+        print(f"{'ok  ' if ok else 'FAIL'}  {what}" + (f"\n      -> {fix}" if fix else ""))
+    failed = sum(not ok for ok, _, _ in results)
+    print("\nready." if not failed else f"\n{failed} check{'s' * (failed != 1)} failed.")
+    return 1 if failed else 0
+
+
+DEMO_URL = "https://d37ci6vzurychx.cloudfront.net/trip-data/yellow_tripdata_2024-01.parquet"
+DEMO_TABLE = "nyc_taxi_demo"
+DEMO_QUESTIONS = """Ask Claude, in plain words:
+  1. "Which pickup location has the most trips, and what is its average fare?"
+  2. "How does the average tip change by hour of day?"
+  3. "Define clean_trips as trips with a positive fare and distance, then compare
+      tip percentage by payment type using it."
+Each answer comes back as a few rows; the 2.9M-row table never enters context.
+Remove the demo with:  tabular-memory demo --remove"""
+
+
+def cmd_demo(args) -> int:
+    e = entry(create=not args.remove)
+    if args.remove:
+        hotdata.remove_table(e["database"], DEMO_TABLE)
+        print(f"removed {e['catalog']}.public.{DEMO_TABLE}")
+        orient.refresh(e, orient.budget())
+        return 0
+    print(f"loading NYC yellow taxi trips, January 2024 (48MB, 2.9M rows); "
+          f"the server fetches it, nothing downloads here...", flush=True)
+    started = time.time()
+    hotdata.load_file(e["database"], DEMO_TABLE, DEMO_URL)
+    print(f"loaded -> {e['catalog']}.public.{DEMO_TABLE} in {time.time() - started:.1f}s\n")
+    orient.refresh(e, orient.budget())
+    print(DEMO_QUESTIONS)
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
-    p = argparse.ArgumentParser(prog="hd", description=__doc__,
+    p = argparse.ArgumentParser(prog="tabular-memory", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="command", required=True)
 
@@ -375,11 +416,18 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("orient", help="print what an agent is told at session start")
     s.add_argument("--refresh", action="store_true"); s.set_defaults(run=cmd_orient)
 
+    s = sub.add_parser("doctor", help="check the setup and say how to fix what fails")
+    s.set_defaults(run=cmd_doctor)
+
+    s = sub.add_parser("demo", help="load a public sample dataset and suggest questions")
+    s.add_argument("--remove", action="store_true", help="drop the demo table")
+    s.set_defaults(run=cmd_demo)
+
     args = p.parse_args(argv)
     try:
         return args.run(args)
     except HotdataError as error:
-        print(f"hd: {error}", file=sys.stderr)
+        print(f"tabular-memory: {error}", file=sys.stderr)
         return 1
 
 

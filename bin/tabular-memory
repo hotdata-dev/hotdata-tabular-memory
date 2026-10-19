@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""hd: the Hotdata command for agents. On the Bash tool's PATH while the plugin is enabled."""
+"""tabular-memory: the Hotdata command for agents. On the Bash tool's PATH while the plugin is enabled."""
 import os, sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "scripts"))
-from hd import main
+from tabular_memory import main
 sys.exit(main())

@@ -32,14 +32,15 @@ def is_orientation(sql: str) -> bool:
 # A shell double-quoted string: anything but a quote or backslash, or a backslash and
 # whatever follows it. SQL in these commands carries \"PULocationID\" inside the quotes.
 DQ = r'"((?:[^"\\]|\\.)*)"'
-QUERY = re.compile(r"(?:hotdata query|hd query)\s+" + DQ, re.S)
+QUERY = re.compile(r"(?:hotdata query|tabular-memory query)\s+" + DQ, re.S)
 BATCH_ARG = re.compile(DQ, re.S)
 LABELLED = re.compile(r"^\s*(?:[A-Za-z_][A-Za-z0-9_]*\s*:\s*)?((?:select|with)\b.*)$", re.I | re.S)
 
 
 def unescape(text: str) -> str:
     return text.replace('\\"', '"').replace("\\\\", "\\")
-BATCH_HEREDOC = re.compile(r"hd batch\s*<<\s*'?(\w+)'?\n(.*?)\n\1", re.S)
+BATCH = re.compile(r"\btabular-memory batch\b")
+BATCH_HEREDOC = re.compile(r"tabular-memory batch\s*<<\s*'?(\w+)'?\n(.*?)\n\1", re.S)
 LABEL_LINE = re.compile(r"^\s*--\s*\w+\s*$")
 
 
@@ -82,14 +83,14 @@ def queries_of(path: Path) -> list[str]:
                 cmd = (c.get("input") or {}).get("command", "")
                 for m in QUERY.finditer(cmd):
                     out.append(norm(unescape(m.group(1))))
-                if "hd batch" in cmd:
+                if BATCH.search(cmd):
                     for m in BATCH_HEREDOC.finditer(cmd):
                         for stmt in m.group(2).split(";"):
                             body = "\n".join(l for l in stmt.splitlines() if not LABEL_LINE.match(l)).strip()
                             if body:
                                 out.append(norm(body))
                     head = cmd.split("<<", 1)[0] if "<<" in cmd else cmd
-                    head = head.split("hd batch", 1)[1]
+                    head = BATCH.split(head, 1)[1]
                     for m in BATCH_ARG.finditer(head):
                         body = LABELLED.match(unescape(m.group(1)))
                         if body:

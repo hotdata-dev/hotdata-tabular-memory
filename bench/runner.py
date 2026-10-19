@@ -81,12 +81,12 @@ Questions:
 
 PLUGIN_BRIEF = """You are answering questions about New York yellow taxi trips for January 2024.
 
-The project's data is in Hotdata and the `hd` command is on your PATH. Your session
+The project's data is in Hotdata and the `tabular-memory` command is on your PATH. Your session
 started with the database, its tables, a sample, any definitions and the SQL dialect.
-Use `hd query "<sql>"`, or `hd batch "label: <sql>" "label: <sql>" ...` to ask several
-questions in one call. In SQL, {{{{name}}}} expands to a definition; `hd defs` lists them.
+Use `tabular-memory query "<sql>"`, or `tabular-memory batch "label: <sql>" "label: <sql>" ...` to ask several
+questions in one call. In SQL, {{{{name}}}} expands to a definition; `tabular-memory defs` lists them.
 If a question names a set (such as "the clean set") and no definition exists, define it
-from the question's own words with `hd define` before answering, so later questions use
+from the question's own words with `tabular-memory define` before answering, so later questions use
 the same one.
 
 Answer each question below. When you are done, print one final line and nothing after it:
@@ -106,7 +106,7 @@ def arm_settings(arm: str, home: Path) -> dict:
     base = {
         "permissions": {
             "allow": ["Bash(hotdata query:*)", "Bash(hotdata databases:*)",
-                      "Bash(hd:*)"],
+                      "Bash(tabular-memory:*)"],
         },
         "autoMemoryDirectory": str(home / "memory"),
     }
@@ -115,7 +115,7 @@ def arm_settings(arm: str, home: Path) -> dict:
         # tool on the machine is fair game, and the CLI is denied so a stray mention in
         # the skill listing cannot turn into a call.
         base["permissions"] = {"allow": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"],
-                               "deny": ["Bash(hotdata:*)", "Bash(hd:*)"]}
+                               "deny": ["Bash(hotdata:*)", "Bash(tabular-memory:*)"]}
         base["autoMemoryEnabled"] = False
         base["enabledPlugins"] = {"hotdata-tabular-memory@hotdata": False}
     elif arm in ("bare", "plugin"):

@@ -9,14 +9,14 @@ The data stays on the server. A question goes to it as SQL and an answer comes b
 one number, a few rows, never the table. One database per project; every agent working
 in the project finds the same one.
 
-The `hd` command is on your PATH while this plugin is enabled.
+The `tabular-memory` command is on your PATH while this plugin is enabled.
 
 ## Load a file
 
 ```sh
-hd load data/trips.parquet            # creates the project database on first use
-hd load data/zones.csv --table zones  # name the table; default is the file's stem
-hd load https://example.com/trips.parquet   # the server fetches it; nothing passes through here
+tabular-memory load data/trips.parquet            # creates the project database on first use
+tabular-memory load data/zones.csv --table zones  # name the table; default is the file's stem
+tabular-memory load https://example.com/trips.parquet   # the server fetches it; nothing passes through here
 ```
 
 Takes a few seconds for 50MB and prints the schema, row count, time ranges, a sample,
@@ -30,14 +30,14 @@ each time, whatever the call does. **If you have more than one question, ask the
 call.** That is where almost all of the saving is:
 
 ```sh
-hd batch "q11: SELECT count(*) FROM {{clean_set}} WHERE \"PULocationID\" = 132 AND \"DOLocationID\" = 230" \
+tabular-memory batch "q11: SELECT count(*) FROM {{clean_set}} WHERE \"PULocationID\" = 132 AND \"DOLocationID\" = 230" \
          "q12: SELECT round(avg(total_amount), 2) FROM {{clean_set}} WHERE \"PULocationID\" = 132 AND \"DOLocationID\" = 230"
 ```
 
 Or a script on stdin, one statement per `;`, with `-- name` lines as labels:
 
 ```sh
-hd batch <<'SQL'
+tabular-memory batch <<'SQL'
 -- rows
 SELECT count(*) FROM {{clean_set}};
 -- top_pickup
@@ -52,13 +52,13 @@ anything is missing.
 ## Ask a question
 
 ```sh
-hd query "SELECT count(*) FROM taxi.public.trips WHERE fare_amount > 0"
-hd query "SELECT \"PULocationID\", count(*) AS n FROM taxi.public.trips GROUP BY 1 ORDER BY n DESC LIMIT 10"
+tabular-memory query "SELECT count(*) FROM taxi.public.trips WHERE fare_amount > 0"
+tabular-memory query "SELECT \"PULocationID\", count(*) AS n FROM taxi.public.trips GROUP BY 1 ORDER BY n DESC LIMIT 10"
 ```
 
 Aggregate, or add a `LIMIT`. A query with neither is refused when it matches more rows
 than the row cap, and anything over the cap is cut with a footer — the rows are still on
-the server, and `hd share` keeps them there as a table. `--out rows.csv` writes every row
+the server, and `tabular-memory share` keeps them there as a table. `--out rows.csv` writes every row
 to a file and prints only a summary; `--format json` prints objects; `--limit N` raises
 the cap for one call. `INSERT INTO <catalog>.public.<table> ... VALUES ...` writes rows;
 put them all in one statement.
@@ -70,14 +70,14 @@ quarter — belongs in a definition, so every agent applies the same one and nob
 invents a variant:
 
 ```sh
-hd define clean_set "SELECT * FROM taxi.public.trips WHERE fare_amount > 0 AND trip_distance > 0" \
+tabular-memory define clean_set "SELECT * FROM taxi.public.trips WHERE fare_amount > 0 AND trip_distance > 0" \
   --description "trips with a positive fare and distance"
-hd query "SELECT count(*) FROM {{clean_set}}"
-hd query "SELECT avg(c.total_amount) FROM {{clean_set}} AS c JOIN taxi.public.zones z ON ..."
+tabular-memory query "SELECT count(*) FROM {{clean_set}}"
+tabular-memory query "SELECT avg(c.total_amount) FROM {{clean_set}} AS c JOIN taxi.public.zones z ON ..."
 ```
 
 `{{name}}` expands to the definition as a subquery. Defining a name again makes a new
-version; the old one stays in history. `hd defs` lists them.
+version; the old one stays in history. `tabular-memory defs` lists them.
 
 **If a question says "the clean set" and no definition exists, define it from the
 question's own words before answering.** Do not apply a filter you were not given.
@@ -85,8 +85,8 @@ question's own words before answering.** Do not apply a filter you were not give
 ## Keep a result on the server
 
 ```sh
-hd share pair_stats "SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS dz, count(*) AS n, avg(total_amount) AS fare FROM {{clean_set}} GROUP BY 1, 2 HAVING count(*) >= 500"
-hd query "SELECT pu, dz, fare FROM taxi.public.pair_stats ORDER BY fare DESC LIMIT 5"
+tabular-memory share pair_stats "SELECT \"PULocationID\" AS pu, \"DOLocationID\" AS dz, count(*) AS n, avg(total_amount) AS fare FROM {{clean_set}} GROUP BY 1, 2 HAVING count(*) >= 500"
+tabular-memory query "SELECT pu, dz, fare FROM taxi.public.pair_stats ORDER BY fare DESC LIMIT 5"
 ```
 
 The intermediate never enters anyone's context, and every agent in the project can
@@ -95,13 +95,14 @@ query the table.
 ## Work alongside other agents
 
 ```sh
-hd fork                 # an isolated copy to experiment in; prints its id and snapshot
-hd attach <database-id> # see another database's tables as <alias>.public.<table>
-hd status               # project, database, tables, definitions
+tabular-memory fork                 # an isolated copy to experiment in; prints its id and snapshot
+tabular-memory attach <database-id> # see another database's tables as <alias>.public.<table>
+tabular-memory status               # project, database, tables, definitions
+tabular-memory doctor               # a command fails for no clear reason: check the setup
 ```
 
 A fork diverges and does not merge back; put a result worth keeping into the shared
-database with `hd share`.
+database with `tabular-memory share`.
 
 ## Dialect
 

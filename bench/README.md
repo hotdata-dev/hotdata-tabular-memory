@@ -7,8 +7,8 @@ does putting the data in Hotdata beat leaving it on disk?
 
 | Arm | What the agent has |
 | :- | :- |
-| `local` | The two files and nothing else. Every tool on the machine is allowed; `hotdata` and `hd` are denied, so a mention in the skill listing cannot become a call. It reaches for DuckDB. |
-| `plugin` | The data in Hotdata, the plugin enabled, and `hd` on PATH. Orientation at session start, shared definitions, batching, refusals. |
+| `local` | The two files and nothing else. Every tool on the machine is allowed; `hotdata` and `tabular-memory` are denied, so a mention in the skill listing cannot become a call. It reaches for DuckDB. |
+| `plugin` | The data in Hotdata, the plugin enabled, and `tabular-memory` on PATH. Orientation at session start, shared definitions, batching, refusals. |
 | `bare` | The Hotdata CLI from a brief, no plugin. Kept for history; it measures Hotdata-without-the-plugin, not Hotdata-versus-nothing. |
 
 `local` is the honest baseline: Claude working as it would if Hotdata did not exist.
@@ -58,7 +58,7 @@ leaves in `~/.claude/projects`, matched to a run by session id so a rerun in the
 working directory cannot read the previous attempt's sessions.
 
 `redundancy.py` extracts every query an agent ran, including the several inside an
-`hd batch` call, and reports how many were repeats and how many were orientation — a
+`tabular-memory batch` call, and reports how many were repeats and how many were orientation — a
 schema read or an unranked peek, as opposed to a query that answers something.
 
 ## Three traps this harness now guards against
@@ -88,7 +88,7 @@ Two agents an arm, twenty sessions each.
 | Haiku 5.5 | with the plugin | 96.0% | 5.1 | 164,122 |
 
 On Opus the plugin cuts turns 32% and tokens 30%. On Haiku 5.5 it cuts 2% and 13%, and
-loses 1.5 points of accuracy. The transcripts say why: Haiku 5.5 calls `hd batch` as
+loses 1.5 points of accuracy. The transcripts say why: Haiku 5.5 calls `tabular-memory batch` as
 often as Opus does in absolute terms, 42 times against 40, but makes 70% more calls
 overall — it uses the affordance and keeps working the old way alongside it. The plugin
 removes turns an agent would otherwise spend; it cannot remove turns it spends anyway.

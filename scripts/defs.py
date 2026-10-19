@@ -49,7 +49,7 @@ def define(project_label: str, name: str, sql: str, description: str = "") -> di
         raise hotdata.HotdataError(
             f"a definition is a whole SELECT, so that {{{{{name}}}}} can stand in a FROM. "
             f"Yours starts with {sql[:40]!r}. Write it as:\n"
-            f'  hd define {name} "SELECT * FROM <catalog>.public.<table> WHERE {sql[:60]}..."')
+            f'  tabular-memory define {name} "SELECT * FROM <catalog>.public.<table> WHERE {sql[:60]}..."')
     full = stored_name(project_label, name)
     existing = api.find(full)
     if existing:
@@ -108,7 +108,7 @@ def expand(sql: str, definitions: dict[str, dict] | None = None,
 
     def body(name: str) -> str:
         if name not in known:
-            names = ", ".join(sorted(known)) or "none yet — `hd define <name> \"<sql>\"`"
+            names = ", ".join(sorted(known)) or "none yet — `tabular-memory define <name> \"<sql>\"`"
             raise hotdata.HotdataError(f"no definition named {name!r}. Known: {names}")
         inner = known[name]["sql"].strip().rstrip(";")
         return f"({inner})"

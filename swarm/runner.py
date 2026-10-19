@@ -95,7 +95,7 @@ complaint_id, category, agent. Use them rather than classifying a complaint agai
         "write them as CSV into {shared}/labels/ with the columns complaint_id,category,"
         "agent. Other agents read that folder, possibly while you write to it."),
     "hotdata": (
-        """The data is in the project's Hotdata database, and `hd` is on your PATH. Your
+        """The data is in the project's Hotdata database, and `tabular-memory` is on your PATH. Your
 session started with its tables, a sample of each and the SQL dialect. The tables:
 
     {cat}.public.trips        one row per trip, keyed by trip_id
@@ -106,7 +106,7 @@ session started with its tables, a sample of each and the SQL dialect. The table
 
 `labels` holds the classifications other agents working on related questions have
 made. Use them rather than classifying a complaint again.""",
-        "INSERT them into {cat}.public.labels with `hd query`, all of them in one "
+        "INSERT them into {cat}.public.labels with `tabular-memory query`, all of them in one "
         "statement. If the insert is refused with \"retry shortly\", another agent is "
         "writing; run the same statement again after a few seconds."),
 }
@@ -144,7 +144,7 @@ def settings_for(arm: str) -> dict:
     """
     permissions = {"allow": ["Bash", "Read", "Write", "Edit", "Glob", "Grep"]}
     if arm != "hotdata":
-        permissions["deny"] = ["Bash(hotdata:*)", "Bash(hd:*)"]
+        permissions["deny"] = ["Bash(hotdata:*)", "Bash(tabular-memory:*)"]
     return {"permissions": permissions, "autoMemoryEnabled": False,
             "enabledPlugins": {"hotdata-tabular-memory@hotdata": False}}
 
