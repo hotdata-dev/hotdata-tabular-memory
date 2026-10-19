@@ -668,6 +668,12 @@ def test_large_data_files_not_yet_loaded_are_named_at_session_start(env):
     assert "small.csv" not in text and "huge.csv" not in text
 
 
+def test_a_hinted_path_with_a_space_is_quoted(env):
+    (env / "my-repo" / "my trips.csv").write_bytes(b"x" * 12 * 1024 * 1024)
+    text = hook("session_start", {"cwd": str(env / "my-repo")})["hookSpecificOutput"]["additionalContext"]
+    assert "tabular-memory load 'my trips.csv'" in text
+
+
 def test_a_project_with_a_database_gets_orientation_not_the_file_hint(env):
     (env / "my-repo" / "trips.parquet").write_bytes(b"x" * 12 * 1024 * 1024)
     project.project_database(create=True)

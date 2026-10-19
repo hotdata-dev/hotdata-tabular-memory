@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -181,7 +182,7 @@ def unloaded_hint(cwd: str, threshold: int) -> str:
     if not files:
         return ""
     lines = ["This project has data files too big to read into context, not yet in Hotdata:"]
-    lines += [f"  tabular-memory load {p}    # {s / (1024 * 1024):.0f}MB" for p, s in files]
+    lines += [f"  tabular-memory load {shlex.quote(str(p))}    # {s / (1024 * 1024):.0f}MB" for p, s in files]
     lines.append("Load one before answering questions about it; the load prints its schema "
                  "and a sample, and every question after that is a `tabular-memory query`.")
     return "\n".join(lines)

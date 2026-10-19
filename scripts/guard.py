@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shlex
 import sys
 from pathlib import Path
 
@@ -47,7 +48,7 @@ def reason(path: Path, size: int) -> str:
                 f"lines")
     return (f"{path.name} is {mb:.0f}MB. Read into context that is {cost} tell you nothing a "
             f"query would not. Load it into Hotdata and query it there:\n\n"
-            f"  tabular-memory load {path}\n\n"
+            f"  tabular-memory load {shlex.quote(str(path))}\n\n"
             f"That takes a few seconds, prints the schema and a sample, and after it every "
             f"question is one `tabular-memory query \"<sql>\"` that returns an answer, not the table. "
             f"Set the plugin option read_guard=off to read the file anyway.")
