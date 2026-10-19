@@ -53,6 +53,8 @@ elif a[:3] == ["databases", "queries", "list"]:
          {"id": "qrun5", "sql_text": "/* tabular-memory:internal */ SELECT count(*) AS n FROM taxi.public.trips",
           "sql_hash": "h4", "result_id": "rsltHK", "row_count": 1, "snapshot_id": 7, "status": "succeeded"}])
 elif a[:2] == ["auth", "status"]:
+    if __import__("os").environ.get("FAKE_AUTH_BROKEN"):
+        print("error: could not reach https://api.hotdata.dev", file=sys.stderr); sys.exit(1)
     ok = "No" if __import__("os").environ.get("FAKE_LOGGED_OUT") else "Yes"
     print(f"\x1b[38;5;8mAuthenticated:  \x1b[0m{ok}")
 elif a == ["--version"]:
@@ -622,6 +624,21 @@ def test_a_logged_out_cli_is_reported_with_the_login_command(env):
     out = hook("session_start", {"cwd": str(env / "my-repo")}, {"FAKE_LOGGED_OUT": "1"})
     assert "! hotdata auth login" in out["systemMessage"]
     assert not (env / "data" / "ready").exists()
+
+
+def test_a_failed_login_check_blocks_nothing_and_is_tried_again(env):
+    fresh(env)
+    project.project_database(create=True)
+    out = hook("session_start", {"cwd": str(env / "my-repo")}, {"FAKE_AUTH_BROKEN": "1"})
+    assert "systemMessage" not in out
+    assert DB in out["hookSpecificOutput"]["additionalContext"]
+    assert not (env / "data" / "ready").exists()
+
+
+def test_doctor_reports_a_failed_login_check_as_unknown_not_logged_out(env):
+    out = cli(["doctor"], env, {"FAKE_AUTH_BROKEN": "1"})
+    assert out.returncode == 1
+    assert "could not check the login" in out.stdout and "auth login" not in out.stdout
 
 
 def test_the_first_ready_session_says_hello_once(env):

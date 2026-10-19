@@ -30,39 +30,47 @@ def installed() -> bool:
     return shutil.which("hotdata") is not None
 
 
-def logged_in(timeout: int = 5) -> tuple[bool, str]:
-    """Return (logged in, what the CLI said). Never raises."""
+def logged_in(timeout: int = 5) -> tuple[bool | None, str]:
+    """Return (logged in, what the CLI said). Never raises.
+
+    None means the check itself failed — a timeout, an error, output it did not
+    recognise — which says nothing about the login, so callers must not report
+    it as logged out.
+    """
     try:
         done = subprocess.run(["hotdata", "auth", "status", "--no-input"],
                               capture_output=True, text=True, timeout=timeout,
                               env=hotdata.credentials())
     except (OSError, subprocess.SubprocessError) as error:
-        return False, str(error)
+        return None, str(error)
     text = hotdata._plain(done.stdout + done.stderr)
     m = re.search(r"Authenticated:\s*(\w+)", text)
-    return bool(m and m.group(1).lower() == "yes"), text
+    if not m:
+        return None, text
+    return m.group(1).lower() == "yes", text
 
 
-def problem() -> str:
-    """Return the one thing stopping the plugin from working, or "" when nothing is."""
+def problem() -> tuple[str, bool]:
+    """Return (the one thing stopping the plugin, whether the check was conclusive)."""
     if not installed():
-        return f"the `hotdata` CLI is not installed. Install it with `{INSTALL}`, then run `{LOGIN}`."
+        return f"the `hotdata` CLI is not installed. Install it with `{INSTALL}`, then run `{LOGIN}`.", True
     ok, _ = logged_in()
-    if not ok:
-        return f"the `hotdata` CLI is not logged in. Type `! {LOGIN}` (it opens a browser)."
-    return ""
+    if ok is False:
+        return f"the `hotdata` CLI is not logged in. Type `! {LOGIN}` (it opens a browser).", True
+    return "", ok is True
 
 
 def session_check() -> tuple[str, str]:
     """Return (problem, welcome) for the session-start hook; at most one is set.
 
     A machine that passed once is not asked again, so a ready session costs one
-    PATH lookup. A failure later surfaces as the command's own error.
+    PATH lookup. A failure later surfaces as the command's own error. A check that
+    could not finish blocks nothing and is tried again next session.
     """
     if marker().exists():
-        return ("" if installed() else problem()), ""
-    found = problem()
-    if found:
+        return ("" if installed() else problem()[0]), ""
+    found, conclusive = problem()
+    if found or not conclusive:
         return found, ""
     marker().write_text("ok\n", encoding="utf-8")
     return "", WELCOME
@@ -87,7 +95,12 @@ def checks(cwd: str) -> list[tuple[bool, str, str]]:
     except (OSError, subprocess.SubprocessError):
         version = "hotdata"
     out.append((True, f"{version} installed", ""))
-    if not logged_in()[0]:
+    ok, said = logged_in()
+    if ok is None:
+        out.append((False, f"could not check the login: {said.splitlines()[0] if said else 'no output'}",
+                    "check the network, then run `hotdata auth status`"))
+        return out
+    if not ok:
         out.append((False, "not logged in", f"! {LOGIN}"))
         return out
     out.append((True, "logged in", ""))
