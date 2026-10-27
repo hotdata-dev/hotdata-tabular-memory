@@ -17,7 +17,9 @@ from pathlib import Path
 import hotdata
 import project
 
-INSTALL = "curl -fsSL https://hotdata.dev/install | sh"
+# Advice only: the plugin never installs the CLI itself.
+INSTALL = "brew install hotdata-dev/tap/cli"
+INSTALL_GUIDE = "https://github.com/hotdata-dev/hotdata-cli#install"
 LOGIN = "hotdata auth login"
 SKIP_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", ".tox", "dist",
              "build", "target", ".cache"}
@@ -54,7 +56,7 @@ def logged_in(timeout: int = 5) -> tuple[bool | None, str]:
 def problem() -> tuple[str, bool]:
     """Return (the one thing stopping the plugin, whether the check was conclusive)."""
     if not installed():
-        return f"the `hotdata` CLI is not installed. Install it with `{INSTALL}`, then run `{LOGIN}`.", True
+        return f"the `hotdata` CLI is not installed. Install it with `{INSTALL}` (other ways: {INSTALL_GUIDE}), then run `{LOGIN}`.", True
     ok, _ = logged_in()
     if ok is False:
         return f"the `hotdata` CLI is not logged in. Type `! {LOGIN}` (it opens a browser).", True

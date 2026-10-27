@@ -46,9 +46,8 @@ outside what it tests.
 Haiku 5.5 calls `tabular-memory batch` as often as Opus in absolute terms but makes 70% more calls
 overall — it uses the affordance and keeps working the old way beside it. It also
 answers 97.5% of these questions unaided, so there was no accuracy headroom to recover.
-`bench/README.md` has the figures.
 
-**Agents sharing work is tested separately**, in `swarm/`: many agents whose tasks
+**Agents sharing work is tested separately**: many agents whose tasks
 overlap, where the shared work is classification an agent pays to redo. In the pilot,
 agents sharing a store reused every label already recorded, but the plugin cost more
 per task than agents sharing a folder, through extra round trips rather than the store.
@@ -91,8 +90,10 @@ claude plugin marketplace add hotdata-dev/claude-plugins
 claude plugin install hotdata-tabular-memory@hotdata
 ```
 
-The plugin calls the `hotdata` CLI, so install that first (`curl -fsSL
-https://hotdata.dev/install | sh`) and run `hotdata auth login`.
+The plugin calls the `hotdata` CLI, so install that first (`brew install
+hotdata-dev/tap/cli`, or see the
+[CLI install guide](https://github.com/hotdata-dev/hotdata-cli#install)) and run
+`hotdata auth login`.
 
 ### First run
 
@@ -159,10 +160,9 @@ The engine is Apache DataFusion. No `date_diff()` or `hour()` — `EXTRACT(EPOCH
 ## Develop
 
 ```sh
-./test.sh          # 56 tests against a fake `hotdata`, offline
+./test.sh          # 78 tests against a fake `hotdata`, offline
 ./test.sh -k guard
 ```
 
-The benchmark that produced the numbers above is in `bench/` and re-runnable. Bump
-`version` in `.claude-plugin/plugin.json` to deploy a change; an unchanged version is not
-re-copied.
+Bump `version` in `.claude-plugin/plugin.json` to deploy a change; an unchanged version
+is not re-copied.
