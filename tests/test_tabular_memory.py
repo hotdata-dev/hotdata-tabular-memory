@@ -54,7 +54,7 @@ elif a[:3] == ["databases", "queries", "list"]:
           "sql_hash": "h4", "result_id": "rsltHK", "row_count": 1, "snapshot_id": 7, "status": "succeeded"}])
 elif a[:2] == ["auth", "status"]:
     if __import__("os").environ.get("FAKE_AUTH_BROKEN"):
-        print("error: could not reach https://api.hotdata.dev", file=sys.stderr); sys.exit(1)
+        print("error: could not reach the Hotdata API", file=sys.stderr); sys.exit(1)
     ok = "No" if __import__("os").environ.get("FAKE_LOGGED_OUT") else "Yes"
     print(f"\x1b[38;5;8mAuthenticated:  \x1b[0m{ok}")
 elif a == ["--version"]:
