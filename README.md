@@ -81,7 +81,8 @@ and instructions did not.
   `~/.hotdata/api-key` when the environment has none, and sends it nowhere else.
 - **SessionStart hook.** It runs `hotdata auth status` once per machine, prints the
   cached orientation, and refreshes that cache in the background: CLI calls read the
-  project's tables and a sample of rows, and the saved-query API reads its definitions. The cache lives in
+  project's tables, a sample of rows, date ranges, and recent query history, and the
+  saved-query API reads its definitions. The cache lives in
   the plugin's data folder (`~/.claude/hotdata` outside Claude Code).
 - **PreToolUse guard.** It checks file sizes on your machine and sends nothing.
 - **`tabular-memory demo`** asks Hotdata to load a public NYC taxi sample from
