@@ -69,6 +69,26 @@ per task than agents sharing a folder, through extra round trips rather than the
 The guard is a refusal rather than advice because the benchmark found that refusals held
 and instructions did not.
 
+## What it runs, sends, and fetches
+
+- **Hotdata, through the `hotdata` CLI.** Every command calls the CLI, which talks to
+  the Hotdata API (`https://api.hotdata.dev/v1`) with your Hotdata login. It sends the
+  files you load, the SQL you run, and the definitions you save, and Hotdata stores
+  them in your workspace until you delete them.
+- **Saved queries, directly.** Definitions use the REST API the CLI does not expose:
+  `scripts/api.py` sends `HOTDATA_API_KEY` to `https://api.hotdata.dev/v1/queries`
+  (or `HOTDATA_API_URL`). It reads the key from the environment, or from
+  `~/.hotdata/api-key` when the environment has none, and sends it nowhere else.
+- **SessionStart hook.** It runs `hotdata auth status` once per machine, prints the
+  cached orientation, and refreshes that cache in the background: CLI calls read the
+  project's tables and a sample of rows, and the saved-query API reads its definitions. The cache lives in
+  the plugin's data folder (`~/.claude/hotdata` outside Claude Code).
+- **PreToolUse guard.** It checks file sizes on your machine and sends nothing.
+- **`tabular-memory demo`** asks Hotdata to load a public NYC taxi sample from
+  `https://d37ci6vzurychx.cloudfront.net`.
+
+The plugin installs nothing and collects no telemetry.
+
 ## The model
 
 **One database per project.** The project is named by its repository root, so every
