@@ -614,7 +614,7 @@ def test_a_missing_cli_is_reported_to_the_user_with_the_install_command(env):
     fresh(env)
     out = hook("session_start", {"cwd": str(env / "my-repo")},
                {"PATH": str(Path(sys.executable).parent)})
-    assert "hotdata.dev/install" in out["systemMessage"]
+    assert "brew install hotdata-dev/tap/cli" in out["systemMessage"]
     assert "cannot run yet" in out["hookSpecificOutput"]["additionalContext"]
     assert not (env / "data" / "ready").exists()
 
@@ -697,7 +697,7 @@ def test_doctor_stops_at_login_and_names_the_fix(env):
 
 def test_doctor_without_the_cli_says_how_to_install_it(env):
     out = cli(["doctor"], env, {"PATH": str(Path(sys.executable).parent)})
-    assert out.returncode == 1 and "hotdata.dev/install" in out.stdout
+    assert out.returncode == 1 and "brew install hotdata-dev/tap/cli" in out.stdout
 
 
 def test_demo_loads_the_sample_by_url_and_suggests_questions(env):

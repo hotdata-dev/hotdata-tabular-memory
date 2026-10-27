@@ -1,5 +1,0 @@
-runs/
-smoke/
-*.parquet
-*.csv
-report.json

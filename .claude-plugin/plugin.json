@@ -1,7 +1,7 @@
 {
   "name": "hotdata-tabular-memory",
   "displayName": "Hotdata Tabular Memory",
-  "version": "4.0.0",
+  "version": "4.0.1",
   "description": "Makes Hotdata the default database when a Claude agent meets data too big for its context: one database per project, definitions every agent shares, results that stay on the server.",
   "author": {
     "name": "Eddie",

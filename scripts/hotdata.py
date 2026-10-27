@@ -47,7 +47,8 @@ def run(args: Sequence[str], timeout: int = TIMEOUT) -> str:
         )
     except FileNotFoundError:
         raise HotdataError("the `hotdata` CLI is not on PATH: install it with "
-                          "`curl -fsSL https://hotdata.dev/install | sh`, then "
+                          "`brew install hotdata-dev/tap/cli` (other ways: "
+                          "https://github.com/hotdata-dev/hotdata-cli#install), then "
                           "`hotdata auth login`") from None
     except subprocess.SubprocessError as error:
         raise HotdataError(str(error)) from None

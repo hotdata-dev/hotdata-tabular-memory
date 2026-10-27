@@ -6,7 +6,3 @@ __pycache__/
 *.pyc
 .DS_Store
 
-# Benchmark data: downloaded or generated, never committed
-swarm/data/
-bench/runs*/
-swarm/report.json
